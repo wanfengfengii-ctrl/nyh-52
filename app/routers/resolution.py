@@ -16,6 +16,30 @@ templates_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__f
 templates = Jinja2Templates(directory=templates_dir)
 
 
+def _apply_accepted_proposals(base_text: str, accepted_proposals_data: list) -> str:
+    if not accepted_proposals_data:
+        return base_text
+    
+    replacements = []
+    for item in accepted_proposals_data:
+        diff = item["diff"]
+        proposal = item["proposal"]
+        ref_text = diff.reference_text or ""
+        
+        if ref_text:
+            pos = base_text.find(ref_text)
+            if pos != -1:
+                replacements.append((pos, pos + len(ref_text), proposal.proposed_text, diff.id, proposal.id))
+    
+    replacements.sort(key=lambda x: x[0], reverse=True)
+    
+    result = base_text
+    for start, end, replacement, diff_id, proposal_id in replacements:
+        result = result[:start] + replacement + result[end:]
+    
+    return result
+
+
 @router.get("/projects/{project_id}/proposals", response_class=HTMLResponse)
 async def proposals_list(
     request: Request,
@@ -343,6 +367,7 @@ async def generate_recommended_page(
     project_id: int,
     volume_no: Optional[int] = None,
     paragraph_no: Optional[int] = None,
+    generated_by: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     project = crud.get_project(db, project_id)
@@ -370,7 +395,8 @@ async def generate_recommended_page(
         "selected_volume": volume_no,
         "selected_paragraph": paragraph_no,
         "base_version": base_version,
-        "max_paragraph_count": max_paragraph_count
+        "max_paragraph_count": max_paragraph_count,
+        "generated_by": generated_by or ""
     })
 
 
@@ -401,10 +427,10 @@ async def generate_recommended_text(
     
     recommended_content = base_passage.content
     
-    diffs = crud.get_diffs_by_passage(db, base_passage.id)
+    all_diffs = crud.get_diffs_by_location(db, project_id, volume_no, paragraph_no)
     accepted_proposals_data = []
     
-    for diff in diffs:
+    for diff in all_diffs:
         proposals = crud.get_proposals_by_diff(db, diff.id)
         accepted = next((p for p in proposals if p.is_accepted), None)
         if accepted:
@@ -412,6 +438,8 @@ async def generate_recommended_text(
                 "diff": diff,
                 "proposal": accepted
             })
+    
+    recommended_content = _apply_accepted_proposals(base_passage.content, accepted_proposals_data)
     
     existing = crud.get_recommended_text(db, project_id, volume_no, paragraph_no)
     if existing:
@@ -485,16 +513,46 @@ async def generate_volume_recommended(
         if existing:
             continue
         
+        all_diffs = crud.get_diffs_by_location(db, project_id, volume_no, passage.paragraph_no)
+        accepted_proposals_data = []
+        
+        for diff in all_diffs:
+            proposals = crud.get_proposals_by_diff(db, diff.id)
+            accepted = next((p for p in proposals if p.is_accepted), None)
+            if accepted:
+                accepted_proposals_data.append({
+                    "diff": diff,
+                    "proposal": accepted
+                })
+        
+        recommended_content = _apply_accepted_proposals(passage.content, accepted_proposals_data)
+        
         rt_data = schemas.RecommendedTextCreate(
             project_id=project_id,
             volume_no=volume_no,
             paragraph_no=passage.paragraph_no,
-            content=passage.content,
+            content=recommended_content,
             status="draft",
             base_version_id=base_version_id,
             generated_by=generated_by
         )
-        crud.create_recommended_text(db, rt_data)
+        rt = crud.create_recommended_text(db, rt_data)
+        
+        for item in accepted_proposals_data:
+            diff = item["diff"]
+            proposal = item["proposal"]
+            diff_version = crud.get_version(db, diff.version_id)
+            
+            evidence_data = schemas.RecommendedTextEvidenceCreate(
+                recommended_text_id=rt.id,
+                diff_id=diff.id,
+                proposal_id=proposal.id,
+                evidence_type="accepted_proposal",
+                description=f"采纳方案：{proposal.title}，作者：{proposal.author}",
+                source_version_name=diff_version.name if diff_version else None
+            )
+            crud.create_recommended_text_evidence(db, evidence_data)
+        
         generated_count += 1
     
     return RedirectResponse(
@@ -579,6 +637,7 @@ async def preview_recommended(
     request: Request,
     project_id: int,
     volume_no: Optional[int] = None,
+    show_evidences: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     project = crud.get_project(db, project_id)
@@ -591,6 +650,8 @@ async def preview_recommended(
     
     base_version = versions[0]
     volumes = crud.get_volumes_by_version(db, base_version.id)
+    
+    show_evidences_bool = show_evidences == "1" or show_evidences == "true"
     
     preview_data = []
     if volume_no is not None:
@@ -619,5 +680,6 @@ async def preview_recommended(
         "volumes": volumes,
         "selected_volume": volume_no,
         "preview_data": preview_data,
-        "base_version": base_version
+        "base_version": base_version,
+        "show_evidences": show_evidences_bool
     })

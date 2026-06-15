@@ -70,7 +70,7 @@
 
                 <div class="mb-4">
                     <label for="generated_by" class="form-label fw-bold">生成人</label>
-                    <input type="text" class="form-control" id="generated_by" placeholder="请输入您的姓名">
+                    <input type="text" class="form-control" id="generated_by" placeholder="请输入您的姓名" value="{{ generated_by }}">
                 </div>
 
                 <div class="d-grid gap-2">
@@ -131,23 +131,29 @@
 </form>
 
 <script>
+function getGeneratedBy() {
+    return encodeURIComponent(document.getElementById('generated_by').value || '');
+}
+
 function updateVolumes() {
     const baseVersionId = document.getElementById('base_version').value;
     const projectId = {{ project.id }};
-    window.location.href = `/projects/${projectId}/recommended/generate?base_version_id=${baseVersionId}`;
+    const generatedBy = getGeneratedBy();
+    window.location.href = `/projects/${projectId}/recommended/generate?base_version_id=${baseVersionId}&generated_by=${generatedBy}`;
 }
 
 function updateParagraphs() {
     const volumeNo = document.getElementById('volume_no').value;
     const baseVersionId = document.getElementById('base_version').value;
     const projectId = {{ project.id }};
+    const generatedBy = getGeneratedBy();
     
     const generateSingleBtn = document.getElementById('generateSingleBtn');
     const generateVolumeBtn = document.getElementById('generateVolumeBtn');
     
     if (volumeNo) {
         generateVolumeBtn.disabled = false;
-        window.location.href = `/projects/${projectId}/recommended/generate?volume_no=${volumeNo}`;
+        window.location.href = `/projects/${projectId}/recommended/generate?volume_no=${volumeNo}&generated_by=${generatedBy}`;
     } else {
         generateSingleBtn.disabled = true;
         generateVolumeBtn.disabled = true;
