@@ -1049,3 +1049,168 @@ def get_diff_distribution_by_versions(db: Session, project_id: int, diff_text: O
         ))
 
     return result
+
+
+def update_version(db: Session, version_id: int, version_update: schemas.VersionUpdate):
+    from app.models import Version
+    db_version = get_version(db, version_id)
+    if db_version:
+        update_data = version_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_version, key, value)
+        db.commit()
+        db.refresh(db_version)
+    return db_version
+
+
+def get_controversy_analyses_by_project(db: Session, project_id: int, analysis_type: Optional[str] = None):
+    from app.models import ControversyAnalysis
+    query = db.query(ControversyAnalysis).filter(ControversyAnalysis.project_id == project_id)
+    if analysis_type:
+        query = query.filter(ControversyAnalysis.analysis_type == analysis_type)
+    return query.order_by(ControversyAnalysis.created_at.desc()).all()
+
+
+def get_controversy_analysis(db: Session, analysis_id: int):
+    from app.models import ControversyAnalysis
+    return db.query(ControversyAnalysis).filter(ControversyAnalysis.id == analysis_id).first()
+
+
+def create_controversy_analysis(db: Session, analysis: schemas.ControversyAnalysisCreate):
+    from app.models import ControversyAnalysis
+    db_analysis = ControversyAnalysis(**analysis.model_dump())
+    db.add(db_analysis)
+    db.commit()
+    db.refresh(db_analysis)
+    return db_analysis
+
+
+def update_controversy_analysis(db: Session, analysis_id: int, **kwargs):
+    from app.models import ControversyAnalysis
+    db_analysis = get_controversy_analysis(db, analysis_id)
+    if db_analysis:
+        for key, value in kwargs.items():
+            setattr(db_analysis, key, value)
+        db.commit()
+        db.refresh(db_analysis)
+    return db_analysis
+
+
+def delete_controversy_analysis(db: Session, analysis_id: int):
+    from app.models import ControversyAnalysis
+    db_analysis = get_controversy_analysis(db, analysis_id)
+    if db_analysis:
+        db.delete(db_analysis)
+        db.commit()
+    return db_analysis
+
+
+def create_controversy_evidence(db: Session, evidence: schemas.ControversyEvidenceCreate):
+    from app.models import ControversyEvidence
+    db_evidence = ControversyEvidence(**evidence.model_dump())
+    db.add(db_evidence)
+    db.commit()
+    db.refresh(db_evidence)
+    return db_evidence
+
+
+def get_evidences_by_controversy_analysis(db: Session, analysis_id: int):
+    from app.models import ControversyEvidence
+    return db.query(ControversyEvidence).filter(
+        ControversyEvidence.controversy_analysis_id == analysis_id
+    ).all()
+
+
+def get_temporal_snapshots_by_project(db: Session, project_id: int, diff_id: Optional[int] = None):
+    from app.models import TemporalEvolutionSnapshot
+    query = db.query(TemporalEvolutionSnapshot).filter(TemporalEvolutionSnapshot.project_id == project_id)
+    if diff_id:
+        query = query.filter(TemporalEvolutionSnapshot.diff_id == diff_id)
+    return query.order_by(TemporalEvolutionSnapshot.year_start).all()
+
+
+def create_temporal_snapshot(db: Session, snapshot: schemas.TemporalEvolutionSnapshotCreate):
+    from app.models import TemporalEvolutionSnapshot
+    db_snapshot = TemporalEvolutionSnapshot(**snapshot.model_dump())
+    db.add(db_snapshot)
+    db.commit()
+    db.refresh(db_snapshot)
+    return db_snapshot
+
+
+def delete_temporal_snapshots_by_project(db: Session, project_id: int):
+    from app.models import TemporalEvolutionSnapshot
+    db.query(TemporalEvolutionSnapshot).filter(
+        TemporalEvolutionSnapshot.project_id == project_id
+    ).delete()
+    db.commit()
+
+
+def get_controversy_reports_by_project(db: Session, project_id: int, report_type: Optional[str] = None):
+    from app.models import ControversyReport
+    query = db.query(ControversyReport).filter(ControversyReport.project_id == project_id)
+    if report_type:
+        query = query.filter(ControversyReport.report_type == report_type)
+    return query.order_by(ControversyReport.created_at.desc()).all()
+
+
+def get_controversy_report(db: Session, report_id: int):
+    from app.models import ControversyReport
+    return db.query(ControversyReport).filter(ControversyReport.id == report_id).first()
+
+
+def create_controversy_report(db: Session, report: schemas.ControversyReportCreate):
+    from app.models import ControversyReport
+    db_report = ControversyReport(**report.model_dump())
+    db.add(db_report)
+    db.commit()
+    db.refresh(db_report)
+    return db_report
+
+
+def delete_controversy_report(db: Session, report_id: int):
+    from app.models import ControversyReport
+    db_report = get_controversy_report(db, report_id)
+    if db_report:
+        db.delete(db_report)
+        db.commit()
+    return db_report
+
+
+def get_versions_with_metadata(db: Session, project_id: int):
+    from app.models import Version
+    return db.query(Version).filter(Version.project_id == project_id).all()
+
+
+def get_diffs_with_filters(
+    db: Session,
+    project_id: int,
+    time_period_start: Optional[str] = None,
+    time_period_end: Optional[str] = None,
+    region_filter: Optional[str] = None,
+    diff_type_filter: Optional[str] = None,
+    version_system_filter: Optional[str] = None
+):
+    from app.models import Diff, Version, Passage
+    query = db.query(Diff).join(Version).join(Passage).filter(
+        Diff.project_id == project_id
+    )
+
+    if diff_type_filter:
+        query = query.filter(Diff.diff_type == diff_type_filter)
+
+    if region_filter:
+        query = query.filter(Version.region == region_filter)
+
+    if version_system_filter:
+        query = query.filter(Version.version_system == version_system_filter)
+
+    return query.all()
+
+
+def get_controversy_evidences_by_position(db: Session, analysis_id: int, position: str):
+    from app.models import ControversyEvidence
+    return db.query(ControversyEvidence).filter(
+        ControversyEvidence.controversy_analysis_id == analysis_id,
+        ControversyEvidence.position == position
+    ).order_by(ControversyEvidence.strength.desc()).all()

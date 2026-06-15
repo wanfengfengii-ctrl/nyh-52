@@ -1,0 +1,740 @@
+{% extends "base.html" %}
+
+{% block title %}异文时空演化与学术争议分析 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-geo-alt"></i> 异文时空演化与学术争议分析
+    </h2>
+    <div>
+        <button class="btn btn-outline-primary me-2" onclick="generateReport()">
+            <i class="bi bi-file-earmark-text"></i> 生成分析报告
+        </button>
+        <button class="btn btn-outline-secondary" onclick="refreshAnalysis()">
+            <i class="bi bi-arrow-clockwise"></i> 刷新分析
+        </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-filter"></i> 筛选条件
+            </div>
+            <div class="card-body">
+                <form id="filterForm" method="get" onsubmit="return applyFilters()">
+                    <div class="mb-3">
+                        <label class="form-label">起始时期</label>
+                        <select name="time_period_start" class="form-select">
+                            <option value="">-- 不限 --</option>
+                            {% for p in periods %}
+                            <option value="{{ p }}" {% if time_period_start == p %}selected{% endif %}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">结束时期</label>
+                        <select name="time_period_end" class="form-select">
+                            <option value="">-- 不限 --</option>
+                            {% for p in periods %}
+                            <option value="{{ p }}" {% if time_period_end == p %}selected{% endif %}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">地域</label>
+                        <select name="region_filter" class="form-select">
+                            <option value="">-- 不限 --</option>
+                            {% for r in regions %}
+                            <option value="{{ r }}" {% if region_filter == r %}selected{% endif %}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">异文类型</label>
+                        <select name="diff_type_filter" class="form-select">
+                            <option value="">-- 不限 --</option>
+                            {% for t in diff_types %}
+                            <option value="{{ t }}" {% if diff_type_filter == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">版本系统</label>
+                        <select name="version_system_filter" class="form-select">
+                            <option value="">-- 不限 --</option>
+                            {% for s in version_systems %}
+                            <option value="{{ s }}" {% if version_system_filter == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 mb-2">
+                        <i class="bi bi-search"></i> 应用筛选
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> 清除筛选
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 版本元数据管理
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    为更好地进行时空演化分析，请完善版本的年代、地域和版本系统信息。
+                </p>
+                <select id="versionSelect" class="form-select mb-2" onchange="loadVersionMetadata()">
+                    <option value="">-- 选择版本 --</option>
+                    {% for v in versions %}
+                    <option value="{{ v.id }}">{{ v.name }}</option>
+                    {% endfor %}
+                </select>
+                <div id="versionMetadataForm" style="display: none;">
+                    <div class="mb-2">
+                        <label class="form-label small">年代（数字）</label>
+                        <input type="number" id="yearNumeric" class="form-control form-control-sm">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">地域</label>
+                        <input type="text" id="region" class="form-control form-control-sm">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">版本系统</label>
+                        <input type="text" id="versionSystem" class="form-control form-control-sm">
+                    </div>
+                    <button class="btn btn-sm btn-primary w-100" onclick="updateVersionMetadata()">
+                        <i class="bi bi-save"></i> 保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        {% if analysis_result %}
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">分析异文总数</h6>
+                        <h2>{{ analysis_result.total_diffs_analyzed }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">高争议异文</h6>
+                        <h2>{{ analysis_result.high_controversy_count }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">中争议异文</h6>
+                        <h2>{{ analysis_result.medium_controversy_count }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">低争议异文</h6>
+                        <h2>{{ analysis_result.low_controversy_count }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if analysis_result.key_findings %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-lightbulb"></i> 主要发现
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for finding in analysis_result.key_findings %}
+                    <li class="list-group-item">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        {{ finding }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-fire"></i> 争议热度排行</span>
+                <span class="badge bg-secondary">{{ analysis_result.heat_items|length }} 条</span>
+            </div>
+            <div class="card-body">
+                {% if analysis_result.heat_items %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>异文</th>
+                                <th>类型</th>
+                                <th>位置</th>
+                                <th>版本</th>
+                                <th>争议分数</th>
+                                <th>热度等级</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in analysis_result.heat_items[:20] %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><strong>「{{ item.diff_text }}」</strong></td>
+                                <td>{{ item.diff_type }}</td>
+                                <td>卷{{ item.volume_no }}段{{ item.paragraph_no }}</td>
+                                <td>{{ item.version_name }}</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar {% if item.controversy_score >= 70 %}bg-danger{% elif item.controversy_score >= 40 %}bg-warning{% else %}bg-success{% endif %}" 
+                                             style="width: {{ item.controversy_score }}%">
+                                            {{ item.controversy_score }}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% set level_class = 'bg-danger' if item.heat_level == 'high' else ('bg-warning text-dark' if item.heat_level == 'medium' else 'bg-success') %}
+                                    <span class="badge {{ level_class }}">
+                                        {{ get_heat_level_label(item.heat_level) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="showDiffDetail({{ item.diff_id }})">
+                                        <i class="bi bi-eye"></i> 详情
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox"></i>
+                    <p class="mt-2 mb-0">暂无争议数据</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if analysis_result.temporal_evolution %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> 时空演化分析
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>历史时期</th>
+                                <th>年代范围</th>
+                                <th>版本数</th>
+                                <th>异文数</th>
+                                <th>稳定度</th>
+                                <th>变化率</th>
+                                <th>主导文本</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dp in analysis_result.temporal_evolution %}
+                            <tr>
+                                <td><strong>{{ dp.period_label }}</strong></td>
+                                <td>
+                                    {% if dp.year_start %}
+                                    {{ dp.year_start }} - {{ dp.year_end }}年
+                                    {% else %}
+                                    <span class="text-muted">未知</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ dp.version_count }}</td>
+                                <td>{{ dp.diff_count }}</td>
+                                <td>
+                                    <div class="progress" style="height: 16px;">
+                                        <div class="progress-bar bg-info" style="width: {{ dp.stability_score }}%">
+                                            {{ dp.stability_score }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 16px;">
+                                        <div class="progress-bar {% if dp.change_rate >= 50 %}bg-danger{% elif dp.change_rate >= 30 %}bg-warning{% else %}bg-success{% endif %}" 
+                                             style="width: {{ dp.change_rate }}%">
+                                            {{ dp.change_rate }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if dp.dominant_text %}
+                                    「{{ dp.dominant_text }}」
+                                    {% else %}
+                                    <span class="text-muted">无</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if analysis_result.regional_distribution %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-map"></i> 地域分布分析
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for item in analysis_result.regional_distribution %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 {% if item.controversy_score >= 50 %}border-danger{% endif %}">
+                            <div class="card-header {% if item.controversy_score >= 50 %}bg-danger text-white{% endif %}">
+                                <strong>{{ item.region }}</strong>
+                            </div>
+                            <div class="card-body small">
+                                <p class="mb-1">版本数: <strong>{{ item.version_count }}</strong></p>
+                                <p class="mb-1">异文数: <strong>{{ item.diff_count }}</strong></p>
+                                <p class="mb-1">
+                                    争议度: 
+                                    <span class="badge {% if item.controversy_score >= 50 %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ item.controversy_score }}%
+                                    </span>
+                                </p>
+                                <p class="mb-1">独特变体: {{ item.unique_variants|length }} 种</p>
+                                {% if item.dominant_variant %}
+                                <p class="mb-0">主导: 「{{ item.dominant_variant }}」</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if analysis_result.version_system_distribution %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-diagram-3"></i> 版本系统分布
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>版本系统</th>
+                                <th>版本数</th>
+                                <th>异文数</th>
+                                <th>独特变体</th>
+                                <th>稳定度</th>
+                                <th>主导变体</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in analysis_result.version_system_distribution %}
+                            <tr>
+                                <td><strong>{{ item.version_system }}</strong></td>
+                                <td>{{ item.version_count }}</td>
+                                <td>{{ item.diff_count }}</td>
+                                <td>{{ item.unique_variants|length }} 种</td>
+                                <td>
+                                    <div class="progress" style="height: 16px;">
+                                        <div class="progress-bar bg-info" style="width: {{ item.stability_score }}%">
+                                            {{ item.stability_score }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if item.dominant_variant %}
+                                    「{{ item.dominant_variant }}」
+                                    {% else %}
+                                    <span class="text-muted">无</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-bar-chart fs-1 text-muted"></i>
+                <p class="mt-3 text-muted">正在进行分析...</p>
+                <p class="small text-muted">系统将结合版本年代、地域来源、异文类型、校勘方案等多维度数据进行综合分析</p>
+                <button class="btn btn-primary mt-2" onclick="runAnalysis()">
+                    <i class="bi bi-play-circle"></i> 开始分析
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-file-earmark-text"></i> 历史分析报告</span>
+        <span class="badge bg-secondary">{{ reports|length }} 份</span>
+    </div>
+    <div class="card-body">
+        {% if reports %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>标题</th>
+                        <th>高争议</th>
+                        <th>稳定传承</th>
+                        <th>后期增改</th>
+                        <th>争议未决</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td>{{ report.id }}</td>
+                        <td>{{ report.title }}</td>
+                        <td><span class="badge bg-danger">{{ report.high_controversy_count }}</span></td>
+                        <td><span class="badge bg-success">{{ report.stable_inheritance_count }}</span></td>
+                        <td><span class="badge bg-warning text-dark">{{ report.late_addition_count }}</span></td>
+                        <td><span class="badge bg-info">{{ report.unresolved_count }}</span></td>
+                        <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="/projects/{{ project.id }}/controversy/reports/{{ report.id }}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> 查看
+                            </a>
+                            <a href="/projects/{{ project.id }}/controversy/reports/{{ report.id }}/export"
+                               class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-download"></i> 导出
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    onclick="deleteReport({{ report.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-inbox"></i>
+            <p class="mt-2 mb-0">暂无历史报告</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="diffDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">异文争议详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="diffDetailContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function applyFilters() {
+    const form = document.getElementById('filterForm');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    for (let [key, value] of formData.entries()) {
+        if (value) params.append(key, value);
+    }
+    window.location.href = `/projects/{{ project.id }}/controversy?${params.toString()}`;
+    return false;
+}
+
+function clearFilters() {
+    window.location.href = `/projects/{{ project.id }}/controversy`;
+}
+
+function refreshAnalysis() {
+    location.reload();
+}
+
+function runAnalysis() {
+    const params = new URLSearchParams(window.location.search);
+    window.location.href = `/projects/{{ project.id }}/controversy?${params.toString()}`;
+}
+
+function generateReport() {
+    const params = new URLSearchParams(window.location.search);
+    const formData = new FormData();
+    
+    const createdBy = prompt('请输入创建者姓名（可选）:', '');
+    if (createdBy) {
+        formData.append('created_by', createdBy);
+    }
+    
+    params.forEach((value, key) => {
+        formData.append(key, value);
+    });
+
+    fetch(`/api/projects/{{ project.id }}/controversy/reports`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('报告生成成功');
+            window.location.href = `/projects/{{ project.id }}/controversy/reports/${data.report_id}`;
+        } else {
+            alert('生成失败: ' + (data.detail || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('生成报告失败:', error);
+        alert('生成报告失败');
+    });
+}
+
+function deleteReport(reportId) {
+    if (!confirm('确定要删除这份报告吗？')) {
+        return;
+    }
+
+    fetch(`/api/projects/{{ project.id }}/controversy/reports/${reportId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('删除成功');
+            location.reload();
+        } else {
+            alert('删除失败');
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    });
+}
+
+function loadVersionMetadata() {
+    const versionId = document.getElementById('versionSelect').value;
+    if (!versionId) {
+        document.getElementById('versionMetadataForm').style.display = 'none';
+        return;
+    }
+
+    const versions = {{ versions|tojson }};
+    const version = versions.find(v => v.id == versionId);
+    
+    if (version) {
+        document.getElementById('yearNumeric').value = version.year_numeric || '';
+        document.getElementById('region').value = version.region || '';
+        document.getElementById('versionSystem').value = version.version_system || '';
+        document.getElementById('versionMetadataForm').style.display = 'block';
+    }
+}
+
+function updateVersionMetadata() {
+    const versionId = document.getElementById('versionSelect').value;
+    if (!versionId) {
+        alert('请先选择版本');
+        return;
+    }
+
+    const data = {
+        year_numeric: parseInt(document.getElementById('yearNumeric').value) || null,
+        region: document.getElementById('region').value || null,
+        version_system: document.getElementById('versionSystem').value || null
+    };
+
+    fetch(`/api/versions/${versionId}/metadata`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('版本元数据更新成功');
+            location.reload();
+        } else {
+            alert('更新失败: ' + (data.detail || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('更新失败:', error);
+        alert('更新失败');
+    });
+}
+
+function showDiffDetail(diffId) {
+    const modal = new bootstrap.Modal(document.getElementById('diffDetailModal'));
+    modal.show();
+
+    fetch(`/api/projects/{{ project.id }}/controversy/diff/${diffId}`)
+    .then(response => response.json())
+    .then(data => {
+        const content = document.getElementById('diffDetailContent');
+        
+        let html = `
+            <div class="mb-4">
+                <h5>基本信息</h5>
+                <table class="table table-sm">
+                    <tr><th>异文ID</th><td>${data.diff_id}</td></tr>
+                    <tr><th>异文文本</th><td><strong>「${data.diff_text}」</strong></td></tr>
+                    <tr><th>异文类型</th><td>${data.diff_type}</td></tr>
+                    <tr><th>状态</th><td>${data.status}</td></tr>
+                    <tr><th>位置</th><td>第${data.volume_no}卷第${data.paragraph_no}段</td></tr>
+                    <tr><th>版本</th><td>${data.version_name}</td></tr>
+                </table>
+            </div>
+            
+            <div class="mb-4">
+                <h5>争议分析</h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card bg-${data.heat_level === 'high' ? 'danger' : data.heat_level === 'medium' ? 'warning text-dark' : 'success'} text-white">
+                            <div class="card-body text-center">
+                                <h6 class="opacity-75">争议分数</h6>
+                                <h2>${data.controversy_score}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h6 class="opacity-75">投票分歧度</h6>
+                                <h2>${data.vote_divergence}%</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body text-center">
+                                <h6 class="opacity-75">热度等级</h6>
+                                <h2>${data.heat_level === 'high' ? '高' : data.heat_level === 'medium' ? '中' : '低'}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h5>投票统计</h5>
+                <div class="d-flex gap-2">
+                    <span class="badge bg-success">赞成: ${data.agree_count}</span>
+                    <span class="badge bg-danger">反对: ${data.disagree_count}</span>
+                    <span class="badge bg-secondary">弃权: ${data.abstain_count}</span>
+                    <span class="badge bg-info">提案: ${data.total_proposals}</span>
+                    <span class="badge bg-primary">讨论: ${data.total_discussions}</span>
+                </div>
+            </div>
+        `;
+
+        if (data.evolution_path && data.evolution_path.length > 0) {
+            html += `
+                <div class="mb-4">
+                    <h5>演化路径</h5>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+            `;
+            data.evolution_path.forEach((item, index) => {
+                html += `
+                    <div class="card p-2" style="min-width: 120px;">
+                        <div class="text-center">
+                            <div class="small text-muted">${item.period_label}</div>
+                            <div><strong>${item.version_name}</strong></div>
+                            <div class="small">${item.version_year || '年代未知'}</div>
+                            ${item.version_region ? `<div class="small text-info">${item.version_region}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+                if (index < data.evolution_path.length - 1) {
+                    html += '<i class="bi bi-arrow-right text-muted"></i>';
+                }
+            });
+            html += '</div></div>';
+        }
+
+        if (data.proposals && data.proposals.length > 0) {
+            html += `
+                <div class="mb-4">
+                    <h5>校勘方案 (${data.proposals.length})</h5>
+                    <div class="accordion">
+            `;
+            data.proposals.forEach((p, index) => {
+                html += `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button ${index > 0 ? 'collapsed' : ''}" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#prop${p.id}">
+                                <span class="me-2">${p.title}</span>
+                                ${p.is_accepted ? '<span class="badge bg-success me-2">已采纳</span>' : ''}
+                                <span class="badge bg-info me-2">赞${p.agree_count}</span>
+                                <span class="badge bg-danger">反${p.disagree_count}</span>
+                            </button>
+                        </h2>
+                        <div id="prop${p.id}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}">
+                            <div class="accordion-body small">
+                                <p><strong>作者:</strong> ${p.author}</p>
+                                <p><strong>推荐文本:</strong> 「${p.proposed_text}」</p>
+                                <p><strong>理由:</strong> ${p.rationale}</p>
+                                ${p.citations && p.citations.length > 0 ? `
+                                    <p><strong>文献引用 (${p.citations.length}):</strong></p>
+                                    <ul>
+                                        ${p.citations.map(c => `<li>${c.title}${c.author ? ' - ' + c.author : ''}</li>`).join('')}
+                                    </ul>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div></div>';
+        }
+
+        content.innerHTML = html;
+    })
+    .catch(error => {
+        console.error('加载详情失败:', error);
+        document.getElementById('diffDetailContent').innerHTML = 
+            '<div class="alert alert-danger">加载失败，请稍后重试</div>';
+    });
+}
+</script>
+{% endblock %}

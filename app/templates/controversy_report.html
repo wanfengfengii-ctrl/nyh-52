@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}争议分析报告 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-file-earmark-text"></i> 异文争议分析报告
+    </h2>
+    <div>
+        <a href="/projects/{{ project.id }}/controversy" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left"></i> 返回分析页面
+        </a>
+        <a href="/projects/{{ project.id }}/controversy/reports/{{ report.id }}/export" 
+           class="btn btn-outline-success me-2">
+            <i class="bi bi-download"></i> 导出报告
+        </a>
+        <button class="btn btn-outline-primary" onclick="window.print()">
+            <i class="bi bi-printer"></i> 打印
+        </button>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">{{ report.title }}</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">分析异文总数</h6>
+                        <h2>{{ report.findings_count }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">高争议异文</h6>
+                        <h2>{{ report.high_controversy_count }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">稳定传承</h6>
+                        <h2>{{ report.stable_inheritance_count }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body text-center">
+                        <h6 class="opacity-75">争议未决</h6>
+                        <h2>{{ report.unresolved_count }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h6>基本信息</h6>
+            <table class="table table-sm">
+                <tr>
+                    <th style="width: 150px;">项目名称</th>
+                    <td>{{ project.name }}</td>
+                </tr>
+                <tr>
+                    <th>报告类型</th>
+                    <td>{{ report.report_type }}</td>
+                </tr>
+                <tr>
+                    <th>分析方法</th>
+                    <td>{{ report.analysis_method or '多因素综合分析' }}</td>
+                </tr>
+                <tr>
+                    <th>创建时间</th>
+                    <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+                {% if report.created_by %}
+                <tr>
+                    <th>分析人员</th>
+                    <td>{{ report.created_by }}</td>
+                </tr>
+                {% endif %}
+                {% if report.time_period_start or report.time_period_end %}
+                <tr>
+                    <th>时间范围</th>
+                    <td>
+                        {% if report.time_period_start %}{{ report.time_period_start }}{% endif %}
+                        {% if report.time_period_start and report.time_period_end %} - {% endif %}
+                        {% if report.time_period_end %}{{ report.time_period_end }}{% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% if report.region_filter %}
+                <tr>
+                    <th>地域筛选</th>
+                    <td>{{ report.region_filter }}</td>
+                </tr>
+                {% endif %}
+                {% if report.diff_type_filter %}
+                <tr>
+                    <th>异文类型</th>
+                    <td>{{ report.diff_type_filter }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+
+        {% if report.summary %}
+        <div class="mb-4">
+            <h6>报告摘要</h6>
+            <div class="alert alert-info">
+                {{ report.summary }}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="mb-4">
+            <h6>分类统计</h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <strong>演化类型分布</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>长期稳定传承</span>
+                                    <span class="badge bg-success">{{ report.stable_inheritance_count }}</span>
+                                </div>
+                                <div class="progress" style="height: 12px;">
+                                    <div class="progress-bar bg-success" 
+                                         style="width: {{ report.stable_inheritance_count / report.findings_count * 100 if report.findings_count > 0 else 0 }}%"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>后期增改</span>
+                                    <span class="badge bg-warning text-dark">{{ report.late_addition_count }}</span>
+                                </div>
+                                <div class="progress" style="height: 12px;">
+                                    <div class="progress-bar bg-warning" 
+                                         style="width: {{ report.late_addition_count / report.findings_count * 100 if report.findings_count > 0 else 0 }}%"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>争议未决</span>
+                                    <span class="badge bg-info">{{ report.unresolved_count }}</span>
+                                </div>
+                                <div class="progress" style="height: 12px;">
+                                    <div class="progress-bar bg-info" 
+                                         style="width: {{ report.unresolved_count / report.findings_count * 100 if report.findings_count > 0 else 0 }}%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>高争议异文</span>
+                                    <span class="badge bg-danger">{{ report.high_controversy_count }}</span>
+                                </div>
+                                <div class="progress" style="height: 12px;">
+                                    <div class="progress-bar bg-danger" 
+                                         style="width: {{ report.high_controversy_count / report.findings_count * 100 if report.findings_count > 0 else 0 }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <strong>研究建议</strong>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush small">
+                                {% if report.high_controversy_count > 0 %}
+                                <li class="list-group-item px-0">
+                                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                                    建议优先处理 {{ report.high_controversy_count }} 条高争议异文
+                                </li>
+                                {% endif %}
+                                {% if report.unresolved_count > 0 %}
+                                <li class="list-group-item px-0">
+                                    <i class="bi bi-question-circle text-info me-2"></i>
+                                    {{ report.unresolved_count }} 条争议未决异文需补充证据
+                                </li>
+                                {% endif %}
+                                {% if report.late_addition_count > 0 %}
+                                <li class="list-group-item px-0">
+                                    <i class="bi bi-clock-history text-secondary me-2"></i>
+                                    {{ report.late_addition_count }} 条可能为后期增改，建议断代研究
+                                </li>
+                                {% endif %}
+                                {% if report.stable_inheritance_count > 0 %}
+                                <li class="list-group-item px-0">
+                                    <i class="bi bi-check-circle text-success me-2"></i>
+                                    {{ report.stable_inheritance_count }} 条可作为版本谱系依据
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h6>报告正文</h6>
+            <div class="card">
+                <div class="card-body bg-light" style="font-family: 'Courier New', monospace; white-space: pre-wrap;">
+{{ report.content }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .navbar, .btn, footer {
+        display: none !important;
+    }
+    .container {
+        max-width: 100% !important;
+    }
+}
+</style>
+{% endblock %}

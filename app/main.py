@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 import os
 
 from app.database import engine, Base
-from app.routers import projects, passages, collation, export, resolution, kgraph, transmission
+from app.routers import projects, passages, collation, export, resolution, kgraph, transmission, controversy
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,6 +20,7 @@ app.include_router(export.router, tags=["export"])
 app.include_router(resolution.router, tags=["resolution"])
 app.include_router(kgraph.router, tags=["knowledge_graph"])
 app.include_router(transmission.router, tags=["transmission_analysis"])
+app.include_router(controversy.router, tags=["controversy_analysis"])
 
 
 @app.get("/health")

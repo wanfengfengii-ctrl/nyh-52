@@ -25,6 +25,9 @@ class Version(Base):
     name = Column(String(255), nullable=False)
     source = Column(Text, nullable=True)
     year = Column(String(50), nullable=True)
+    region = Column(String(255), nullable=True)
+    version_system = Column(String(255), nullable=True)
+    year_numeric = Column(Integer, nullable=True)
 
     __table_args__ = (UniqueConstraint("project_id", "name", name="uq_project_version_name"),)
 
@@ -313,3 +316,95 @@ class TransmissionReport(Base):
 
     project = relationship("Project")
     target_diff = relationship("Diff")
+
+
+class ControversyAnalysis(Base):
+    __tablename__ = "controversy_analysis"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    diff_id = Column(Integer, ForeignKey("diff.id", ondelete="SET NULL"), nullable=True)
+    analysis_type = Column(String(50), default="controversy_heat")
+    time_period_start = Column(String(50), nullable=True)
+    time_period_end = Column(String(50), nullable=True)
+    region_filter = Column(String(255), nullable=True)
+    diff_type_filter = Column(String(50), nullable=True)
+    version_system_filter = Column(String(255), nullable=True)
+    controversy_score = Column(Integer, default=0)
+    heat_level = Column(String(20), default="low")
+    total_proposals = Column(Integer, default=0)
+    total_votes = Column(Integer, default=0)
+    total_discussions = Column(Integer, default=0)
+    vote_divergence = Column(Integer, default=0)
+    evidence_conflict_count = Column(Integer, default=0)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    project = relationship("Project")
+    target_diff = relationship("Diff")
+
+
+class TemporalEvolutionSnapshot(Base):
+    __tablename__ = "temporal_evolution_snapshot"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    diff_id = Column(Integer, ForeignKey("diff.id", ondelete="SET NULL"), nullable=True)
+    period_label = Column(String(100), nullable=False)
+    year_start = Column(Integer, nullable=True)
+    year_end = Column(Integer, nullable=True)
+    region = Column(String(255), nullable=True)
+    version_count = Column(Integer, default=0)
+    diff_count = Column(Integer, default=0)
+    variant_texts = Column(Text, nullable=True)
+    dominant_text = Column(String(500), nullable=True)
+    stability_score = Column(Integer, default=0)
+    change_rate = Column(Integer, default=0)
+    evidence_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
+
+    project = relationship("Project")
+    target_diff = relationship("Diff")
+
+
+class ControversyReport(Base):
+    __tablename__ = "controversy_report"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(500), nullable=False)
+    report_type = Column(String(50), default="controversy_analysis")
+    target_diff_id = Column(Integer, ForeignKey("diff.id", ondelete="SET NULL"), nullable=True)
+    time_period_start = Column(String(50), nullable=True)
+    time_period_end = Column(String(50), nullable=True)
+    region_filter = Column(String(255), nullable=True)
+    diff_type_filter = Column(String(50), nullable=True)
+    content = Column(Text, nullable=False)
+    summary = Column(Text, nullable=True)
+    analysis_method = Column(String(100), nullable=True)
+    findings_count = Column(Integer, default=0)
+    high_controversy_count = Column(Integer, default=0)
+    stable_inheritance_count = Column(Integer, default=0)
+    late_addition_count = Column(Integer, default=0)
+    unresolved_count = Column(Integer, default=0)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    project = relationship("Project")
+    target_diff = relationship("Diff")
+
+
+class ControversyEvidence(Base):
+    __tablename__ = "controversy_evidence"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    controversy_analysis_id = Column(Integer, ForeignKey("controversy_analysis.id", ondelete="CASCADE"), nullable=False)
+    evidence_type = Column(String(20), nullable=False)
+    position = Column(String(20), nullable=False)
+    source = Column(String(500), nullable=False)
+    content = Column(Text, nullable=False)
+    strength = Column(Integer, default=50)
+    author = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    controversy_analysis = relationship("ControversyAnalysis")
