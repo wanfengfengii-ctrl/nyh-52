@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}版本谱系 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-diagram-2"></i> 版本谱系管理
+    </h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addLineageModal">
+        <i class="bi bi-plus-lg"></i> 添加谱系关系
+    </button>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list"></i> 谱系关系列表
+            </div>
+            <div class="card-body">
+                {% if lineages %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>父版本</th>
+                                <th>关系</th>
+                                <th>子版本</th>
+                                <th>置信度</th>
+                                <th>证据</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for lineage in lineages %}
+                            <tr>
+                                <td>{{ lineage.id }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ lineage.parent_name }}</span>
+                                </td>
+                                <td>
+                                    <i class="bi bi-arrow-down-right text-info"></i>
+                                    <span class="badge bg-info">{{ lineage.relation_type }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ lineage.child_name }}</span>
+                                </td>
+                                <td>
+                                    <div class="progress" style="width: 80px; height: 20px;">
+                                        <div class="progress-bar" role="progressbar"
+                                             style="width: {{ lineage.confidence }}%"
+                                             aria-valuenow="{{ lineage.confidence }}"
+                                             aria-valuemin="0" aria-valuemax="100">
+                                            {{ lineage.confidence }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if lineage.evidence %}
+                                    <button class="btn btn-sm btn-outline-info"
+                                            data-bs-toggle="tooltip"
+                                            title="{{ lineage.evidence }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted">无</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            onclick="deleteLineage({{ lineage.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mt-3">暂无版本谱系数据</p>
+                    <p class="small">点击"添加谱系关系"按钮建立版本间的承袭关系</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 关系类型说明
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <span class="badge bg-info">direct_copy</span>
+                        <p class="small text-muted mt-1 mb-0">直接复制，版本间存在明确的直接承袭关系</p>
+                    </li>
+                    <li class="mb-2">
+                        <span class="badge bg-info">revised</span>
+                        <p class="small text-muted mt-1 mb-0">修订本，在原版本基础上进行了修订</p>
+                    </li>
+                    <li class="mb-2">
+                        <span class="badge bg-info">annotated</span>
+                        <p class="small text-muted mt-1 mb-0">注本，添加了注释的版本</p>
+                    </li>
+                    <li class="mb-2">
+                        <span class="badge bg-info">abridged</span>
+                        <p class="small text-muted mt-1 mb-0">节本，对原文进行了删节</p>
+                    </li>
+                    <li class="mb-2">
+                        <span class="badge bg-info">expanded</span>
+                        <p class="small text-muted mt-1 mb-0">增订本，内容有所扩充</p>
+                    </li>
+                    <li class="mb-2">
+                        <span class="badge bg-info">indirect</span>
+                        <p class="small text-muted mt-1 mb-0">间接关系，通过中间版本关联</p>
+                    </li>
+                    <li class="mb-2">
+                        <span class="badge bg-info">other</span>
+                        <p class="small text-muted mt-1 mb-0">其他类型的关系</p>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-lightbulb"></i> 使用提示
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    版本谱系是传播分析的基础。建立准确的版本承袭关系，
+                    可以帮助分析异文在版本间的传播路径，判断文字变化是
+                    传抄讹误、版本承袭还是后世改写。
+                </p>
+                <p class="small text-muted mb-0">
+                    建议从已知的版本源流信息入手，逐步构建完整的版本谱系树。
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addLineageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加版本谱系关系</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addLineageForm">
+                    <div class="mb-3">
+                        <label class="form-label">父版本（源版本）</label>
+                        <select id="parent_version_id" class="form-select" required>
+                            <option value="">请选择父版本</option>
+                            {% for v in versions %}
+                            <option value="{{ v.id }}">{{ v.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">关系类型</label>
+                        <select id="relation_type" class="form-select" required>
+                            <option value="direct_copy">direct_copy - 直接复制</option>
+                            <option value="revised">revised - 修订本</option>
+                            <option value="annotated">annotated - 注本</option>
+                            <option value="abridged">abridged - 节本</option>
+                            <option value="expanded">expanded - 增订本</option>
+                            <option value="indirect">indirect - 间接关系</option>
+                            <option value="other">other - 其他</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">子版本（承袭版本）</label>
+                        <select id="child_version_id" class="form-select" required>
+                            <option value="">请选择子版本</option>
+                            {% for v in versions %}
+                            <option value="{{ v.id }}">{{ v.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">置信度 (0-100)</label>
+                        <input type="number" id="confidence" class="form-control"
+                               value="50" min="0" max="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">证据说明</label>
+                        <textarea id="evidence" class="form-control" rows="3"
+                                  placeholder="请输入判断版本关系的证据..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea id="description" class="form-control" rows="2"
+                                  placeholder="请输入关系描述..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">创建者</label>
+                        <input type="text" id="created_by" class="form-control"
+                               placeholder="请输入您的名字">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitLineage()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+function submitLineage() {
+    const parentVersionId = document.getElementById('parent_version_id').value;
+    const childVersionId = document.getElementById('child_version_id').value;
+    const relationType = document.getElementById('relation_type').value;
+    const confidence = parseInt(document.getElementById('confidence').value);
+    const evidence = document.getElementById('evidence').value;
+    const description = document.getElementById('description').value;
+    const createdBy = document.getElementById('created_by').value;
+
+    if (!parentVersionId || !childVersionId) {
+        alert('请选择父版本和子版本');
+        return;
+    }
+
+    if (parentVersionId === childVersionId) {
+        alert('父版本和子版本不能相同');
+        return;
+    }
+
+    const params = new URLSearchParams({
+        parent_version_id: parentVersionId,
+        child_version_id: childVersionId
+    });
+
+    fetch(`/api/projects/{{ project.id }}/version-lineage?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            relation_type: relationType,
+            description: description,
+            confidence: confidence,
+            evidence: evidence,
+            created_by: createdBy
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.id) {
+            alert('谱系关系添加成功');
+            location.reload();
+        } else {
+            alert('添加失败: ' + (data.detail || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('添加谱系关系失败:', error);
+        alert('添加失败');
+    });
+}
+
+function deleteLineage(lineageId) {
+    if (!confirm('确定要删除这条谱系关系吗？')) {
+        return;
+    }
+
+    fetch(`/api/projects/{{ project.id }}/version-lineage/${lineageId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('删除成功');
+            location.reload();
+        } else {
+            alert('删除失败');
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    });
+}
+</script>
+{% endblock %}

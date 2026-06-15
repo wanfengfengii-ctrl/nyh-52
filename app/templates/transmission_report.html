@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report.title }} - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-file-earmark-text"></i> {{ report.title }}
+    </h2>
+    <div>
+        <button class="btn btn-outline-secondary" onclick="window.print()">
+            <i class="bi bi-printer"></i> 打印
+        </button>
+        <a href="/projects/{{ project.id }}/transmission" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card sticky-top" style="top: 20px;">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 报告信息
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6 text-muted small">报告ID</dt>
+                    <dd class="col-6 small">{{ report.id }}</dd>
+
+                    <dt class="col-6 text-muted small">报告类型</dt>
+                    <dd class="col-6 small">{{ report.report_type }}</dd>
+
+                    <dt class="col-6 text-muted small">目标异文</dt>
+                    <dd class="col-6 small">
+                        {% if report.target_diff_id %}
+                        <span class="badge bg-danger">异文{{ report.target_diff_id }}</span>
+                        {% else %}
+                        无
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-6 text-muted small">分析方法</dt>
+                    <dd class="col-6 small">{{ report.analysis_method or '默认' }}</dd>
+
+                    <dt class="col-6 text-muted small">发现数</dt>
+                    <dd class="col-6 small">{{ report.findings_count }}</dd>
+
+                    <dt class="col-6 text-muted small">创建者</dt>
+                    <dd class="col-6 small">{{ report.created_by or '系统' }}</dd>
+
+                    <dt class="col-6 text-muted small">创建时间</dt>
+                    <dd class="col-6 small">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-file-text"></i> 报告内容
+            </div>
+            <div class="card-body">
+                {% if report.summary %}
+                <div class="alert alert-info mb-4">
+                    <h6><i class="bi bi-lightbulb"></i> 摘要</h6>
+                    <p class="mb-0">{{ report.summary }}</p>
+                </div>
+                {% endif %}
+
+                <pre class="bg-light p-4 rounded" style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.8;">{{ report.content }}</pre>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-gear"></i> 操作
+            </div>
+            <div class="card-body">
+                <button class="btn btn-outline-danger" onclick="deleteReport()">
+                    <i class="bi bi-trash"></i> 删除报告
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function deleteReport() {
+    if (!confirm('确定要删除这份报告吗？此操作不可恢复。')) {
+        return;
+    }
+
+    fetch(`/api/projects/{{ project.id }}/transmission/reports/{{ report.id }}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('删除成功');
+            window.location.href = '/projects/{{ project.id }}/transmission';
+        } else {
+            alert('删除失败');
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    });
+}
+</script>
+
+<style>
+@media print {
+    .navbar, .footer, .btn, .card-header {
+        display: none !important;
+    }
+    .container {
+        max-width: 100%;
+    }
+    pre {
+        border: none;
+        background: none !important;
+    }
+}
+</style>
+{% endblock %}

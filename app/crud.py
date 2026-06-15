@@ -590,3 +590,462 @@ def get_volume_progress(db: Session, project_id: int) -> list:
         ))
     
     return progress_list
+
+
+def get_graph_nodes_by_project(db: Session, project_id: int, node_type: Optional[str] = None):
+    from app.models import GraphNode
+    query = db.query(GraphNode).filter(GraphNode.project_id == project_id)
+    if node_type:
+        query = query.filter(GraphNode.node_type == node_type)
+    return query.all()
+
+
+def get_graph_node(db: Session, node_id: int):
+    from app.models import GraphNode
+    return db.query(GraphNode).filter(GraphNode.id == node_id).first()
+
+
+def get_graph_node_by_ref(db: Session, project_id: int, node_type: str, ref_id: int):
+    from app.models import GraphNode
+    return db.query(GraphNode).filter(
+        GraphNode.project_id == project_id,
+        GraphNode.node_type == node_type,
+        GraphNode.ref_id == ref_id
+    ).first()
+
+
+def create_graph_node(db: Session, node: schemas.GraphNodeCreate):
+    from app.models import GraphNode
+    existing = get_graph_node_by_ref(db, node.project_id, node.node_type, node.ref_id) if node.ref_id else None
+    if existing:
+        return existing
+    db_node = GraphNode(**node.model_dump())
+    db.add(db_node)
+    db.commit()
+    db.refresh(db_node)
+    return db_node
+
+
+def update_graph_node(db: Session, node_id: int, label: Optional[str] = None, description: Optional[str] = None):
+    from app.models import GraphNode
+    db_node = get_graph_node(db, node_id)
+    if db_node:
+        if label is not None:
+            db_node.label = label
+        if description is not None:
+            db_node.description = description
+        db.commit()
+        db.refresh(db_node)
+    return db_node
+
+
+def delete_graph_node(db: Session, node_id: int):
+    from app.models import GraphNode
+    db_node = get_graph_node(db, node_id)
+    if db_node:
+        db.delete(db_node)
+        db.commit()
+    return db_node
+
+
+def get_graph_edges_by_project(db: Session, project_id: int, edge_type: Optional[str] = None):
+    from app.models import GraphEdge
+    query = db.query(GraphEdge).filter(GraphEdge.project_id == project_id)
+    if edge_type:
+        query = query.filter(GraphEdge.edge_type == edge_type)
+    return query.all()
+
+
+def get_graph_edge(db: Session, edge_id: int):
+    from app.models import GraphEdge
+    return db.query(GraphEdge).filter(GraphEdge.id == edge_id).first()
+
+
+def create_graph_edge(db: Session, edge: schemas.GraphEdgeCreate):
+    from app.models import GraphEdge
+    existing = db.query(GraphEdge).filter(
+        GraphEdge.source_id == edge.source_id,
+        GraphEdge.target_id == edge.target_id,
+        GraphEdge.edge_type == edge.edge_type
+    ).first()
+    if existing:
+        return existing
+    db_edge = GraphEdge(**edge.model_dump())
+    db.add(db_edge)
+    db.commit()
+    db.refresh(db_edge)
+    return db_edge
+
+
+def delete_graph_edge(db: Session, edge_id: int):
+    from app.models import GraphEdge
+    db_edge = get_graph_edge(db, edge_id)
+    if db_edge:
+        db.delete(db_edge)
+        db.commit()
+    return db_edge
+
+
+def get_graph_data(db: Session, project_id: int) -> schemas.GraphData:
+    nodes = get_graph_nodes_by_project(db, project_id)
+    edges = get_graph_edges_by_project(db, project_id)
+    return schemas.GraphData(nodes=nodes, edges=edges)
+
+
+def get_diff_relations_by_project(db: Session, project_id: int, relation_type: Optional[str] = None):
+    from app.models import DiffRelation
+    query = db.query(DiffRelation).filter(DiffRelation.project_id == project_id)
+    if relation_type:
+        query = query.filter(DiffRelation.relation_type == relation_type)
+    return query.all()
+
+
+def get_diff_relations_by_diff(db: Session, diff_id: int):
+    from app.models import DiffRelation
+    return db.query(DiffRelation).filter(
+        (DiffRelation.source_diff_id == diff_id) | (DiffRelation.target_diff_id == diff_id)
+    ).all()
+
+
+def create_diff_relation(db: Session, relation: schemas.DiffRelationCreate):
+    from app.models import DiffRelation
+    existing = db.query(DiffRelation).filter(
+        DiffRelation.source_diff_id == relation.source_diff_id,
+        DiffRelation.target_diff_id == relation.target_diff_id,
+        DiffRelation.relation_type == relation.relation_type
+    ).first()
+    if existing:
+        return existing
+    db_relation = DiffRelation(**relation.model_dump())
+    db.add(db_relation)
+    db.commit()
+    db.refresh(db_relation)
+    return db_relation
+
+
+def delete_diff_relation(db: Session, relation_id: int):
+    from app.models import DiffRelation
+    db_relation = db.query(DiffRelation).filter(DiffRelation.id == relation_id).first()
+    if db_relation:
+        db.delete(db_relation)
+        db.commit()
+    return db_relation
+
+
+def get_version_lineages_by_project(db: Session, project_id: int):
+    from app.models import VersionLineage
+    return db.query(VersionLineage).filter(VersionLineage.project_id == project_id).all()
+
+
+def get_version_lineages_by_version(db: Session, version_id: int):
+    from app.models import VersionLineage
+    return db.query(VersionLineage).filter(
+        (VersionLineage.parent_version_id == version_id) | (VersionLineage.child_version_id == version_id)
+    ).all()
+
+
+def create_version_lineage(db: Session, lineage: schemas.VersionLineageCreate):
+    from app.models import VersionLineage
+    existing = db.query(VersionLineage).filter(
+        VersionLineage.parent_version_id == lineage.parent_version_id,
+        VersionLineage.child_version_id == lineage.child_version_id
+    ).first()
+    if existing:
+        return existing
+    db_lineage = VersionLineage(**lineage.model_dump())
+    db.add(db_lineage)
+    db.commit()
+    db.refresh(db_lineage)
+    return db_lineage
+
+
+def delete_version_lineage(db: Session, lineage_id: int):
+    from app.models import VersionLineage
+    db_lineage = db.query(VersionLineage).filter(VersionLineage.id == lineage_id).first()
+    if db_lineage:
+        db.delete(db_lineage)
+        db.commit()
+    return db_lineage
+
+
+def get_transmission_reports_by_project(db: Session, project_id: int, report_type: Optional[str] = None):
+    from app.models import TransmissionReport
+    query = db.query(TransmissionReport).filter(TransmissionReport.project_id == project_id)
+    if report_type:
+        query = query.filter(TransmissionReport.report_type == report_type)
+    return query.order_by(TransmissionReport.created_at.desc()).all()
+
+
+def get_transmission_report(db: Session, report_id: int):
+    from app.models import TransmissionReport
+    return db.query(TransmissionReport).filter(TransmissionReport.id == report_id).first()
+
+
+def create_transmission_report(db: Session, report: schemas.TransmissionReportCreate):
+    from app.models import TransmissionReport
+    db_report = TransmissionReport(**report.model_dump())
+    db.add(db_report)
+    db.commit()
+    db.refresh(db_report)
+    return db_report
+
+
+def delete_transmission_report(db: Session, report_id: int):
+    from app.models import TransmissionReport
+    db_report = get_transmission_report(db, report_id)
+    if db_report:
+        db.delete(db_report)
+        db.commit()
+    return db_report
+
+
+def get_diffs_by_text_pattern(db: Session, project_id: int, text_pattern: str):
+    from app.models import Diff
+    return db.query(Diff).filter(
+        Diff.project_id == project_id,
+        Diff.text.like(f"%{text_pattern}%")
+    ).all()
+
+
+def build_graph_from_existing_data(db: Session, project_id: int) -> schemas.GraphData:
+    from app.models import Version, Passage, Diff, CollationProposal, LiteratureCitation, CollationNote
+    from app.models import GraphNode, GraphEdge
+
+    versions = get_versions_by_project(db, project_id)
+    diffs = get_diffs_by_project(db, project_id)
+    proposals = db.query(CollationProposal).join(Diff).filter(Diff.project_id == project_id).all()
+    citations = db.query(LiteratureCitation).join(CollationProposal).join(Diff).filter(Diff.project_id == project_id).all()
+
+    node_map = {}
+
+    for v in versions:
+        node_data = schemas.GraphNodeCreate(
+            project_id=project_id,
+            node_type="version",
+            ref_id=v.id,
+            label=v.name,
+            description=f"版本: {v.name}, 来源: {v.source or '未知'}"
+        )
+        node = create_graph_node(db, node_data)
+        node_map[f"version_{v.id}"] = node
+
+    volume_set = set()
+    passages_all = db.query(Passage).join(Version).filter(Version.project_id == project_id).all()
+    for p in passages_all:
+        vol_key = f"volume_{p.version_id}_{p.volume_no}"
+        if vol_key not in node_map:
+            v_name = node_map[f"version_{p.version_id}"].label if f"version_{p.version_id}" in node_map else ""
+            node_data = schemas.GraphNodeCreate(
+                project_id=project_id,
+                node_type="volume",
+                ref_id=p.volume_no,
+                label=f"第{p.volume_no}卷",
+                description=f"版本: {v_name}, 第{p.volume_no}卷"
+            )
+            node = create_graph_node(db, node_data)
+            node_map[vol_key] = node
+
+    for d in diffs:
+        diff_key = f"diff_{d.id}"
+        if diff_key not in node_map:
+            node_data = schemas.GraphNodeCreate(
+                project_id=project_id,
+                node_type="diff",
+                ref_id=d.id,
+                label=f"异文-{d.id}",
+                description=f"类型: {d.diff_type}, 文本: {d.text or ''}, 状态: {d.status}"
+            )
+            node = create_graph_node(db, node_data)
+            node_map[diff_key] = node
+
+    for p in proposals:
+        prop_key = f"proposal_{p.id}"
+        if prop_key not in node_map:
+            node_data = schemas.GraphNodeCreate(
+                project_id=project_id,
+                node_type="proposal",
+                ref_id=p.id,
+                label=p.title,
+                description=f"提案: {p.title}, 作者: {p.author}, 状态: {'已采纳' if p.is_accepted else '待审'}"
+            )
+            node = create_graph_node(db, node_data)
+            node_map[prop_key] = node
+
+    for c in citations:
+        cite_key = f"citation_{c.id}"
+        if cite_key not in node_map:
+            node_data = schemas.GraphNodeCreate(
+                project_id=project_id,
+                node_type="citation",
+                ref_id=c.id,
+                label=c.title,
+                description=f"文献: {c.title}, 作者: {c.author or '未知'}"
+            )
+            node = create_graph_node(db, node_data)
+            node_map[cite_key] = node
+
+    for d in diffs:
+        diff_node = node_map.get(f"diff_{d.id}")
+        version_node = node_map.get(f"version_{d.version_id}")
+        if diff_node and version_node:
+            edge_data = schemas.GraphEdgeCreate(
+                project_id=project_id,
+                source_id=diff_node.id,
+                target_id=version_node.id,
+                edge_type="appears_in",
+                weight=1
+            )
+            create_graph_edge(db, edge_data)
+
+    for d in diffs:
+        diff_node = node_map.get(f"diff_{d.id}")
+        passage = get_passage(db, d.passage_id)
+        if diff_node and passage:
+            vol_key = f"volume_{d.version_id}_{passage.volume_no}"
+            vol_node = node_map.get(vol_key)
+            if vol_node:
+                edge_data = schemas.GraphEdgeCreate(
+                    project_id=project_id,
+                    source_id=diff_node.id,
+                    target_id=vol_node.id,
+                    edge_type="located_in",
+                    weight=1
+                )
+                create_graph_edge(db, edge_data)
+
+    for p in proposals:
+        prop_node = node_map.get(f"proposal_{p.id}")
+        diff_node = node_map.get(f"diff_{p.diff_id}")
+        if prop_node and diff_node:
+            edge_data = schemas.GraphEdgeCreate(
+                project_id=project_id,
+                source_id=diff_node.id,
+                target_id=prop_node.id,
+                edge_type="has_proposal",
+                weight=1
+            )
+            create_graph_edge(db, edge_data)
+
+    for c in citations:
+        cite_node = node_map.get(f"citation_{c.id}")
+        prop_node = node_map.get(f"proposal_{c.proposal_id}")
+        if cite_node and prop_node:
+            edge_data = schemas.GraphEdgeCreate(
+                project_id=project_id,
+                source_id=prop_node.id,
+                target_id=cite_node.id,
+                edge_type="cites_literature",
+                weight=1
+            )
+            create_graph_edge(db, edge_data)
+
+    return get_graph_data(db, project_id)
+
+
+def get_diff_graph_detail(db: Session, diff_id: int) -> schemas.DiffGraphDetail:
+    from app.models import Diff, Version, CollationProposal, LiteratureCitation, CollationNote, DiffRelation
+
+    diff = get_diff(db, diff_id)
+    if not diff:
+        return None
+
+    version = get_version(db, diff.version_id)
+    passage = get_passage(db, diff.passage_id)
+
+    proposals = get_proposals_by_diff(db, diff_id)
+    proposal_dicts = []
+    citation_dicts = []
+    for p in proposals:
+        proposal_dicts.append({
+            "id": p.id,
+            "title": p.title,
+            "author": p.author,
+            "proposed_text": p.proposed_text,
+            "is_accepted": p.is_accepted,
+            "created_at": p.created_at
+        })
+        citations = get_citations_by_proposal(db, p.id)
+        for c in citations:
+            citation_dicts.append({
+                "id": c.id,
+                "proposal_id": p.id,
+                "title": c.title,
+                "author": c.author,
+                "publication": c.publication,
+                "quote_text": c.quote_text
+            })
+
+    diff_relations = get_diff_relations_by_diff(db, diff_id)
+    related_diffs = []
+    for rel in diff_relations:
+        other_diff_id = rel.target_diff_id if rel.source_diff_id == diff_id else rel.source_diff_id
+        other_diff = get_diff(db, other_diff_id)
+        if other_diff:
+            other_version = get_version(db, other_diff.version_id)
+            related_diffs.append({
+                "id": other_diff_id,
+                "text": other_diff.text,
+                "diff_type": other_diff.diff_type,
+                "relation_type": rel.relation_type,
+                "confidence": rel.confidence,
+                "version_name": other_version.name if other_version else "未知"
+            })
+
+    notes = get_collation_notes_by_diff(db, diff_id)
+    resolution_history = []
+    for note in notes:
+        resolution_history.append({
+            "id": note.id,
+            "author": note.author,
+            "content": note.content,
+            "evidence": note.evidence,
+            "is_final": note.is_final,
+            "created_at": note.created_at
+        })
+
+    versions_list = []
+    if version:
+        versions_list.append({
+            "id": version.id,
+            "name": version.name,
+            "source": version.source,
+            "year": version.year,
+            "volume_no": passage.volume_no if passage else None,
+            "paragraph_no": passage.paragraph_no if passage else None
+        })
+
+    return schemas.DiffGraphDetail(
+        diff_id=diff.id,
+        diff_text=diff.text or "",
+        diff_type=diff.diff_type,
+        status=diff.status,
+        versions=versions_list,
+        proposals=proposal_dicts,
+        citations=citation_dicts,
+        related_diffs=related_diffs,
+        resolution_history=resolution_history
+    )
+
+
+def get_diff_distribution_by_versions(db: Session, project_id: int, diff_text: Optional[str] = None) -> List[schemas.DiffDistribution]:
+    from app.models import Diff, Version
+
+    versions = get_versions_by_project(db, project_id)
+    result = []
+
+    for v in versions:
+        query = db.query(Diff).filter(
+            Diff.project_id == project_id,
+            Diff.version_id == v.id
+        )
+        if diff_text:
+            query = query.filter(Diff.text.like(f"%{diff_text}%"))
+        diffs = query.all()
+        result.append(schemas.DiffDistribution(
+            version_id=v.id,
+            version_name=v.name,
+            diff_count=len(diffs),
+            diff_ids=[d.id for d in diffs]
+        ))
+
+    return result

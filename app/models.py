@@ -198,3 +198,118 @@ class RecommendedTextEvidence(Base):
     source_version_name = Column(String(255), nullable=True)
 
     recommended_text = relationship("RecommendedText", back_populates="evidences")
+
+
+GRAPH_NODE_TYPES = [
+    "diff", "version", "volume", "passage",
+    "proposal", "citation", "person", "literature"
+]
+
+GRAPH_EDGE_TYPES = [
+    "appears_in", "located_in", "has_proposal", "cites_literature",
+    "authored_by", "related_to", "derived_from", "transmitted_to",
+    "references", "supports", "contradicts"
+]
+
+DIFF_RELATION_TYPES = [
+    "same_char", "synonym", "phonetic", "semantic",
+    "copy_error", "omission", "addition", "transposition", "other"
+]
+
+
+class GraphNode(Base):
+    __tablename__ = "graph_node"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    node_type = Column(String(50), nullable=False)
+    ref_id = Column(Integer, nullable=True)
+    label = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    properties = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (UniqueConstraint("project_id", "node_type", "ref_id", name="uq_project_node_ref"),)
+
+    project = relationship("Project")
+    outgoing_edges = relationship("GraphEdge", foreign_keys="GraphEdge.source_id", back_populates="source", cascade="all, delete-orphan")
+    incoming_edges = relationship("GraphEdge", foreign_keys="GraphEdge.target_id", back_populates="target", cascade="all, delete-orphan")
+
+
+class GraphEdge(Base):
+    __tablename__ = "graph_edge"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    source_id = Column(Integer, ForeignKey("graph_node.id", ondelete="CASCADE"), nullable=False)
+    target_id = Column(Integer, ForeignKey("graph_node.id", ondelete="CASCADE"), nullable=False)
+    edge_type = Column(String(50), nullable=False)
+    weight = Column(Integer, default=1)
+    properties = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (UniqueConstraint("source_id", "target_id", "edge_type", name="uq_source_target_edge"),)
+
+    project = relationship("Project")
+    source = relationship("GraphNode", foreign_keys=[source_id], back_populates="outgoing_edges")
+    target = relationship("GraphNode", foreign_keys=[target_id], back_populates="incoming_edges")
+
+
+class DiffRelation(Base):
+    __tablename__ = "diff_relation"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    source_diff_id = Column(Integer, ForeignKey("diff.id", ondelete="CASCADE"), nullable=False)
+    target_diff_id = Column(Integer, ForeignKey("diff.id", ondelete="CASCADE"), nullable=False)
+    relation_type = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    confidence = Column(Integer, default=50)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (UniqueConstraint("source_diff_id", "target_diff_id", "relation_type", name="uq_diff_relation"),)
+
+    project = relationship("Project")
+    source_diff = relationship("Diff", foreign_keys=[source_diff_id])
+    target_diff = relationship("Diff", foreign_keys=[target_diff_id])
+
+
+class VersionLineage(Base):
+    __tablename__ = "version_lineage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    parent_version_id = Column(Integer, ForeignKey("version.id", ondelete="CASCADE"), nullable=False)
+    child_version_id = Column(Integer, ForeignKey("version.id", ondelete="CASCADE"), nullable=False)
+    relation_type = Column(String(50), default="direct_copy")
+    description = Column(Text, nullable=True)
+    confidence = Column(Integer, default=50)
+    evidence = Column(Text, nullable=True)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (UniqueConstraint("parent_version_id", "child_version_id", name="uq_version_lineage"),)
+
+    project = relationship("Project")
+    parent_version = relationship("Version", foreign_keys=[parent_version_id])
+    child_version = relationship("Version", foreign_keys=[child_version_id])
+
+
+class TransmissionReport(Base):
+    __tablename__ = "transmission_report"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("project.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(500), nullable=False)
+    report_type = Column(String(50), default="diff_transmission")
+    target_diff_id = Column(Integer, ForeignKey("diff.id", ondelete="SET NULL"), nullable=True)
+    content = Column(Text, nullable=False)
+    summary = Column(Text, nullable=True)
+    analysis_method = Column(String(100), nullable=True)
+    findings_count = Column(Integer, default=0)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    project = relationship("Project")
+    target_diff = relationship("Diff")

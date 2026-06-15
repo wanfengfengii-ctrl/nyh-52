@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}传播分析 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-graph-down-arrow"></i> 异文传播分析
+    </h2>
+    <a href="/projects/{{ project.id }}/version-lineage" class="btn btn-outline-primary">
+        <i class="bi bi-diagram-2"></i> 管理版本谱系
+    </a>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-search"></i> 选择异文
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">选择要分析的异文</label>
+                    <select id="diff-select" class="form-select" onchange="onDiffSelectChange()">
+                        <option value="">-- 请选择异文 --</option>
+                        {% for d in diffs %}
+                        <option value="{{ d.id }}" {% if selected_diff_id == d.id %}selected{% endif %}>
+                            异文{{ d.id }} - {{ d.diff_type }} - {{ d.text or '(空)' }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="analyzeTransmission()">
+                    <i class="bi bi-play-circle"></i> 开始分析
+                </button>
+            </div>
+        </div>
+
+        {% if lineages %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 版本谱系信息
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    当前已建立 <strong>{{ lineages|length }}</strong> 条版本谱系关系。
+                </p>
+                <p class="small text-muted mb-0">
+                    版本谱系越完整，传播分析结果越准确。
+                </p>
+            </div>
+        </div>
+        {% else %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-exclamation-triangle text-warning"></i> 提示
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    尚未建立版本谱系关系，传播分析结果可能不够准确。
+                </p>
+                <a href="/projects/{{ project.id }}/version-lineage"
+                   class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus-lg"></i> 去建立版本谱系
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bar-chart"></i> 分析结果</span>
+                {% if analysis_result %}
+                <button class="btn btn-sm btn-success" onclick="generateReport()">
+                    <i class="bi bi-file-earmark-text"></i> 生成报告
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if analysis_result %}
+                <div class="mb-4">
+                    <h5>分析结论</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">最可能成因</h6>
+                                    <h3 class="text-primary">
+                                        {{ get_cause_label(analysis_result.likely_cause) }}
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted">综合置信度</h6>
+                                    <h3 class="text-success">
+                                        {{ analysis_result.confidence }}%
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h5>主要发现</h5>
+                    <ul class="list-group">
+                        {% for finding in analysis_result.key_findings %}
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            {{ finding }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                {% if analysis_result.transmission_paths %}
+                <div>
+                    <h5>传播路径详情 ({{ analysis_result.total_paths }} 条)</h5>
+                    <div class="accordion" id="pathsAccordion">
+                        {% for path in analysis_result.transmission_paths[:10] %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#path{{ loop.index }}">
+                                    <span class="me-3">路径 {{ loop.index }}</span>
+                                    <span class="badge bg-info me-2">
+                                        {{ get_path_type_label(path.path_type) }}
+                                    </span>
+                                    <span class="badge bg-secondary">
+                                        权重: {{ path.total_weight }}
+                                    </span>
+                                </button>
+                            </h2>
+                            <div id="path{{ loop.index }}"
+                                 class="accordion-collapse collapse"
+                                 data-bs-parent="#pathsAccordion">
+                                <div class="accordion-body">
+                                    <div class="mb-2">
+                                        <strong>传播链路:</strong>
+                                    </div>
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                        {% for name in path.version_names %}
+                                        <span class="badge bg-primary">{{ name }}</span>
+                                        {% if not loop.last %}
+                                        <i class="bi bi-arrow-right text-muted"></i>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    <div class="mt-2 small text-muted">
+                                        路径长度: {{ path.path|length }} 个版本 |
+                                        证据数: {{ path.evidence_count }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-search fs-1"></i>
+                    <p class="mt-3">请选择异文并开始分析</p>
+                    <p class="small">选择一个异文后，系统将分析其在不同版本间的传播路径</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-file-earmark-text"></i> 历史分析报告
+    </div>
+    <div class="card-body">
+        {% if reports %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>标题</th>
+                        <th>目标异文</th>
+                        <th>分析方法</th>
+                        <th>发现数</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td>{{ report.id }}</td>
+                        <td>{{ report.title }}</td>
+                        <td>
+                            {% if report.target_diff_id %}
+                            <span class="badge bg-danger">异文{{ report.target_diff_id }}</span>
+                            {% else %}
+                            <span class="text-muted">无</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ report.analysis_method or '默认' }}</td>
+                        <td>{{ report.findings_count }}</td>
+                        <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="/projects/{{ project.id }}/transmission/reports/{{ report.id }}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> 查看
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    onclick="deleteReport({{ report.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-inbox"></i>
+            <p class="mt-2 mb-0">暂无历史报告</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function onDiffSelectChange() {
+    const diffId = document.getElementById('diff-select').value;
+    if (diffId) {
+        window.location.href = `/projects/{{ project.id }}/transmission?diff_id=${diffId}`;
+    }
+}
+
+function analyzeTransmission() {
+    const diffId = document.getElementById('diff-select').value;
+    if (!diffId) {
+        alert('请选择要分析的异文');
+        return;
+    }
+    window.location.href = `/projects/{{ project.id }}/transmission?diff_id=${diffId}`;
+}
+
+function generateReport() {
+    const diffId = document.getElementById('diff-select').value;
+    if (!diffId) {
+        alert('请先选择异文并进行分析');
+        return;
+    }
+
+    const createdBy = prompt('请输入创建者姓名（可选）:', '');
+
+    const params = new URLSearchParams({ diff_id: diffId });
+    if (createdBy) {
+        params.append('created_by', createdBy);
+    }
+
+    fetch(`/api/projects/{{ project.id }}/transmission/reports?${params.toString()}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('报告生成成功');
+            window.location.href = `/projects/{{ project.id }}/transmission/reports/${data.report_id}`;
+        } else {
+            alert('生成失败: ' + (data.detail || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('生成报告失败:', error);
+        alert('生成报告失败');
+    });
+}
+
+function deleteReport(reportId) {
+    if (!confirm('确定要删除这份报告吗？')) {
+        return;
+    }
+
+    fetch(`/api/projects/{{ project.id }}/transmission/reports/${reportId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('删除成功');
+            location.reload();
+        } else {
+            alert('删除失败');
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    });
+}
+</script>
+{% endblock %}

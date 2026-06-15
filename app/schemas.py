@@ -302,3 +302,162 @@ class ProposalVoteSummary(BaseModel):
     disagree_count: int = 0
     abstain_count: int = 0
     total_votes: int = 0
+
+
+class GraphNodeBase(BaseModel):
+    node_type: str = Field(..., min_length=1, max_length=50)
+    ref_id: Optional[int] = None
+    label: str = Field(..., min_length=1, max_length=500)
+    description: Optional[str] = None
+    properties: Optional[str] = None
+
+
+class GraphNodeCreate(GraphNodeBase):
+    project_id: int
+
+
+class GraphNode(GraphNodeBase):
+    id: int
+    project_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class GraphEdgeBase(BaseModel):
+    edge_type: str = Field(..., min_length=1, max_length=50)
+    weight: int = 1
+    properties: Optional[str] = None
+
+
+class GraphEdgeCreate(GraphEdgeBase):
+    project_id: int
+    source_id: int
+    target_id: int
+
+
+class GraphEdge(GraphEdgeBase):
+    id: int
+    project_id: int
+    source_id: int
+    target_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class GraphData(BaseModel):
+    nodes: List[GraphNode] = []
+    edges: List[GraphEdge] = []
+
+
+class DiffRelationBase(BaseModel):
+    relation_type: str = Field(..., min_length=1, max_length=50)
+    description: Optional[str] = None
+    confidence: int = 50
+    created_by: Optional[str] = Field(None, max_length=255)
+
+
+class DiffRelationCreate(DiffRelationBase):
+    project_id: int
+    source_diff_id: int
+    target_diff_id: int
+
+
+class DiffRelation(DiffRelationBase):
+    id: int
+    project_id: int
+    source_diff_id: int
+    target_diff_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VersionLineageBase(BaseModel):
+    relation_type: str = Field("direct_copy", max_length=50)
+    description: Optional[str] = None
+    confidence: int = 50
+    evidence: Optional[str] = None
+    created_by: Optional[str] = Field(None, max_length=255)
+
+
+class VersionLineageCreate(VersionLineageBase):
+    project_id: int
+    parent_version_id: int
+    child_version_id: int
+
+
+class VersionLineage(VersionLineageBase):
+    id: int
+    project_id: int
+    parent_version_id: int
+    child_version_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TransmissionReportBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+    report_type: str = Field("diff_transmission", max_length=50)
+    target_diff_id: Optional[int] = None
+    content: str = Field(..., min_length=1)
+    summary: Optional[str] = None
+    analysis_method: Optional[str] = Field(None, max_length=100)
+    findings_count: int = 0
+    created_by: Optional[str] = Field(None, max_length=255)
+
+
+class TransmissionReportCreate(TransmissionReportBase):
+    project_id: int
+
+
+class TransmissionReport(TransmissionReportBase):
+    id: int
+    project_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TransmissionPath(BaseModel):
+    path: List[int] = []
+    version_names: List[str] = []
+    total_weight: int = 0
+    path_type: str = "unknown"
+    evidence_count: int = 0
+
+
+class DiffDistribution(BaseModel):
+    version_id: int
+    version_name: str
+    diff_count: int
+    diff_ids: List[int] = []
+
+
+class DiffGraphDetail(BaseModel):
+    diff_id: int
+    diff_text: str
+    diff_type: str
+    status: str
+    versions: List[dict] = []
+    proposals: List[dict] = []
+    citations: List[dict] = []
+    related_diffs: List[dict] = []
+    resolution_history: List[dict] = []
+
+
+class TransmissionAnalysisResult(BaseModel):
+    target_diff_id: int
+    analysis_method: str
+    total_paths: int = 0
+    transmission_paths: List[TransmissionPath] = []
+    likely_cause: str = "unknown"
+    confidence: int = 0
+    key_findings: List[str] = []

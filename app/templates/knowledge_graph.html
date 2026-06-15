@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}知识图谱 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-diagram-3"></i> 异文知识图谱
+    </h2>
+    <div>
+        <button class="btn btn-primary" onclick="buildGraph()">
+            <i class="bi bi-magic"></i> 从现有数据构建图谱
+        </button>
+        <button class="btn btn-outline-secondary" onclick="refreshGraph()">
+            <i class="bi bi-arrow-clockwise"></i> 刷新
+        </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 图谱统计
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>节点总数:</strong> {{ graph_data.nodes|length }}
+                </div>
+                <div class="mb-3">
+                    <strong>关系总数:</strong> {{ graph_data.edges|length }}
+                </div>
+                <hr>
+                <h6>节点类型分布</h6>
+                {% for node_type, count in node_type_counts.items() %}
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="badge bg-info">{{ node_type }}</span>
+                    <span>{{ count }} 个</span>
+                </div>
+                {% endfor %}
+                <hr>
+                <h6>关系类型分布</h6>
+                {% for edge_type, count in edge_type_counts.items() %}
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="badge bg-success">{{ edge_type }}</span>
+                    <span>{{ count }} 条</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-graph-up"></i> 图谱可视化</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="zoomIn()">
+                        <i class="bi bi-zoom-in"></i>
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="zoomOut()">
+                        <i class="bi bi-zoom-out"></i>
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="resetView()">
+                        <i class="bi bi-fullscreen-exit"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="graph-container" style="height: 500px; border: 1px solid #dee2e6; border-radius: 0.375rem; background-color: #fafafa; position: relative; overflow: hidden;">
+                    <svg id="graph-svg" width="100%" height="100%"></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-link-45deg"></i> 异文关联管理
+            </div>
+            <div class="card-body">
+                <p class="text-muted">管理异文之间的语义关联，如同义、音近、形近等关系。</p>
+                <a href="/projects/{{ project.id }}/diff-relations" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-right"></i> 进入异文关联管理
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-diagram-2"></i> 版本谱系管理
+            </div>
+            <div class="card-body">
+                <p class="text-muted">建立版本之间的承袭关系，构建版本谱系树。</p>
+                <a href="/projects/{{ project.id }}/version-lineage" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-right"></i> 进入版本谱系管理
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-search"></i> 节点搜索
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <input type="text" id="search-input" class="form-control" placeholder="输入关键词搜索节点..." onkeyup="searchNodes()">
+            </div>
+            <div class="col-md-3">
+                <select id="filter-type" class="form-select" onchange="filterNodes()">
+                    <option value="">所有类型</option>
+                    {% for nt in node_types %}
+                    <option value="{{ nt }}">{{ nt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="search-results" class="mt-3"></div>
+    </div>
+</div>
+
+<style>
+.node {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.node:hover {
+    stroke-width: 3px;
+}
+.link {
+    stroke-opacity: 0.6;
+}
+.node-label {
+    font-size: 12px;
+    pointer-events: none;
+}
+</style>
+
+<script>
+let graphData = { nodes: [], edges: [] };
+let svg, g, zoom;
+let currentScale = 1;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initGraph();
+    loadGraphData();
+});
+
+function initGraph() {
+    svg = d3.select("#graph-svg");
+    const width = document.getElementById("graph-container").clientWidth;
+    const height = document.getElementById("graph-container").clientHeight;
+
+    zoom = d3.zoom()
+        .scaleExtent([0.2, 5])
+        .on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+
+    svg.call(zoom);
+
+    g = svg.append("g");
+
+    svg.attr("viewBox", [0, 0, width, height]);
+}
+
+function loadGraphData() {
+    fetch(`/api/projects/{{ project.id }}/graph`)
+        .then(response => response.json())
+        .then(data => {
+            graphData = data;
+            renderGraph();
+        })
+        .catch(error => console.error('加载图谱数据失败:', error));
+}
+
+function renderGraph() {
+    const width = document.getElementById("graph-container").clientWidth;
+    const height = document.getElementById("graph-container").clientHeight;
+
+    g.selectAll("*").remove();
+
+    const nodes = graphData.nodes.map(d => ({...d}));
+    const edges = graphData.edges.map(d => ({
+        ...d,
+        source: d.source,
+        target: d.target
+    }));
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(edges).id(d => d.id).distance(100))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("collision", d3.forceCollide().radius(35));
+
+    const link = g.append("g")
+        .attr("class", "links")
+        .selectAll("line")
+        .data(edges)
+        .enter().append("line")
+        .attr("class", "link")
+        .attr("stroke", d => getEdgeColor(d.type))
+        .attr("stroke-width", d => Math.sqrt(d.weight || 1) * 1.5);
+
+    const node = g.append("g")
+        .attr("class", "nodes")
+        .selectAll("circle")
+        .data(nodes)
+        .enter().append("circle")
+        .attr("class", "node")
+        .attr("r", d => getNodeSize(d.type))
+        .attr("fill", d => getNodeColor(d.type))
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 2)
+        .call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended))
+        .on("click", (event, d) => showNodeDetail(d))
+        .on("mouseover", (event, d) => showTooltip(event, d))
+        .on("mouseout", hideTooltip);
+
+    const label = g.append("g")
+        .attr("class", "labels")
+        .selectAll("text")
+        .data(nodes)
+        .enter().append("text")
+        .attr("class", "node-label")
+        .attr("text-anchor", "middle")
+        .attr("dy", d => getNodeSize(d.type) + 15)
+        .text(d => d.label.length > 12 ? d.label.substring(0, 12) + '...' : d.label)
+        .attr("fill", "#333");
+
+    simulation.on("tick", () => {
+        link
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+        node
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y);
+
+        label
+            .attr("x", d => d.x)
+            .attr("y", d => d.y);
+    });
+
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+}
+
+function getNodeColor(type) {
+    const colors = {
+        'diff': '#e74c3c',
+        'version': '#3498db',
+        'volume': '#2ecc71',
+        'passage': '#9b59b6',
+        'proposal': '#f39c12',
+        'citation': '#1abc9c',
+        'person': '#e67e22',
+        'literature': '#34495e'
+    };
+    return colors[type] || '#95a5a6';
+}
+
+function getNodeSize(type) {
+    const sizes = {
+        'diff': 12,
+        'version': 20,
+        'volume': 16,
+        'passage': 10,
+        'proposal': 14,
+        'citation': 12,
+        'person': 10,
+        'literature': 12
+    };
+    return sizes[type] || 10;
+}
+
+function getEdgeColor(type) {
+    const colors = {
+        'appears_in': '#3498db',
+        'located_in': '#2ecc71',
+        'has_proposal': '#f39c12',
+        'cites_literature': '#1abc9c',
+        'authored_by': '#e67e22',
+        'related_to': '#e74c3c',
+        'derived_from': '#9b59b6',
+        'transmitted_to': '#34495e',
+        'references': '#16a085',
+        'supports': '#27ae60',
+        'contradicts': '#c0392b'
+    };
+    return colors[type] || '#bdc3c7';
+}
+
+function buildGraph() {
+    if (!confirm('确定要从现有数据重新构建知识图谱吗？这将添加新的节点和关系。')) {
+        return;
+    }
+
+    fetch(`/api/projects/{{ project.id }}/graph/build`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message + '\n节点数: ' + data.node_count + '\n关系数: ' + data.edge_count);
+            loadGraphData();
+            location.reload();
+        })
+        .catch(error => {
+            console.error('构建图谱失败:', error);
+            alert('构建图谱失败');
+        });
+}
+
+function refreshGraph() {
+    loadGraphData();
+}
+
+function zoomIn() {
+    svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+}
+
+function zoomOut() {
+    svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+}
+
+function resetView() {
+    svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
+}
+
+function searchNodes() {
+    const keyword = document.getElementById('search-input').value.toLowerCase();
+    const resultsDiv = document.getElementById('search-results');
+
+    if (!keyword) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+
+    const matches = graphData.nodes.filter(n =>
+        n.label.toLowerCase().includes(keyword) ||
+        (n.description && n.description.toLowerCase().includes(keyword))
+    );
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<p class="text-muted">未找到匹配的节点</p>';
+        return;
+    }
+
+    let html = '<div class="list-group">';
+    matches.slice(0, 20).forEach(node => {
+        html += `<button type="button" class="list-group-item list-group-item-action" onclick="focusNode(${node.id})">
+            <span class="badge bg-primary me-2">${node.type}</span>
+            ${node.label}
+        </button>`;
+    });
+    html += '</div>';
+    resultsDiv.innerHTML = html;
+}
+
+function filterNodes() {
+    const filterType = document.getElementById('filter-type').value;
+    loadGraphData();
+}
+
+function focusNode(nodeId) {
+    const node = graphData.nodes.find(n => n.id === nodeId);
+    if (node) {
+        showNodeDetail(node);
+    }
+}
+
+function showNodeDetail(node) {
+    alert(
+        '节点详情\n' +
+        '------\n' +
+        '类型: ' + node.type + '\n' +
+        '标签: ' + node.label + '\n' +
+        '描述: ' + (node.description || '无')
+    );
+}
+
+function showTooltip(event, d) {
+    const tooltip = document.getElementById('graph-tooltip');
+    if (!tooltip) {
+        const t = document.createElement('div');
+        t.id = 'graph-tooltip';
+        t.style.position = 'absolute';
+        t.style.padding = '8px 12px';
+        t.style.background = 'rgba(0,0,0,0.8)';
+        t.style.color = '#fff';
+        t.style.borderRadius = '4px';
+        t.style.fontSize = '12px';
+        t.style.pointerEvents = 'none';
+        t.style.zIndex = '1000';
+        document.getElementById('graph-container').appendChild(t);
+    }
+    const tooltipEl = document.getElementById('graph-tooltip');
+    tooltipEl.innerHTML = `<strong>${d.label}</strong><br>类型: ${d.type}`;
+    tooltipEl.style.left = (event.offsetX + 10) + 'px';
+    tooltipEl.style.top = (event.offsetY - 30) + 'px';
+    tooltipEl.style.display = 'block';
+}
+
+function hideTooltip() {
+    const tooltip = document.getElementById('graph-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+}
+</script>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+{% endblock %}

@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}异文关联 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-link-45deg"></i> 异文关联管理
+    </h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRelationModal">
+        <i class="bi bi-plus-lg"></i> 添加关联
+    </button>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list"></i> 关联列表
+            </div>
+            <div class="card-body">
+                {% if relations %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>源异文</th>
+                                <th>关系类型</th>
+                                <th>目标异文</th>
+                                <th>置信度</th>
+                                <th>创建者</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rel in relations %}
+                            <tr>
+                                <td>{{ rel.id }}</td>
+                                <td>
+                                    <span class="badge bg-danger">异文{{ rel.source_diff_id }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ rel.relation_type }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger">异文{{ rel.target_diff_id }}</span>
+                                </td>
+                                <td>
+                                    <div class="progress" style="width: 80px; height: 20px;">
+                                        <div class="progress-bar" role="progressbar"
+                                             style="width: {{ rel.confidence }}%"
+                                             aria-valuenow="{{ rel.confidence }}"
+                                             aria-valuemin="0" aria-valuemax="100">
+                                            {{ rel.confidence }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ rel.created_by or '系统' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            onclick="deleteRelation({{ rel.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mt-3">暂无异文关联数据</p>
+                    <p class="small">点击"添加关联"按钮创建异文之间的关系</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 关系类型说明
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    {% for rt in relation_types %}
+                    <li class="mb-2">
+                        <span class="badge bg-info">{{ rt }}</span>
+                        <p class="small text-muted mt-1 mb-0">
+                            {% if rt == 'same_char' %}同字异写，同一字的不同写法{% endif %}
+                            {% if rt == 'synonym' %}同义词或近义词关系{% endif %}
+                            {% if rt == 'phonetic' %}音近或通假关系{% endif %}
+                            {% if rt == 'semantic' %}语义相关联{% endif %}
+                            {% if rt == 'copy_error' %}传抄讹误导致的异文{% endif %}
+                            {% if rt == 'omission' %}脱文关系，一处有字一处脱漏{% endif %}
+                            {% if rt == 'addition' %}衍文关系，一处多字{% endif %}
+                            {% if rt == 'transposition' %}倒文关系，文字顺序颠倒{% endif %}
+                            {% if rt == 'other' %}其他类型的关联{% endif %}
+                        </p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addRelationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加异文关联</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addRelationForm">
+                    <div class="mb-3">
+                        <label class="form-label">源异文ID</label>
+                        <select id="source_diff_id" class="form-select" required>
+                            <option value="">请选择源异文</option>
+                            {% for d in diffs %}
+                            <option value="{{ d.id }}">
+                                异文{{ d.id }} - {{ d.diff_type }} - {{ d.text or '(空)' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">关系类型</label>
+                        <select id="relation_type" class="form-select" required>
+                            <option value="">请选择关系类型</option>
+                            {% for rt in relation_types %}
+                            <option value="{{ rt }}">{{ rt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">目标异文ID</label>
+                        <select id="target_diff_id" class="form-select" required>
+                            <option value="">请选择目标异文</option>
+                            {% for d in diffs %}
+                            <option value="{{ d.id }}">
+                                异文{{ d.id }} - {{ d.diff_type }} - {{ d.text or '(空)' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">置信度 (0-100)</label>
+                        <input type="number" id="confidence" class="form-control"
+                               value="50" min="0" max="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea id="description" class="form-control" rows="3"
+                                  placeholder="请输入关联描述..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">创建者</label>
+                        <input type="text" id="created_by" class="form-control"
+                               placeholder="请输入您的名字">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitRelation()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function submitRelation() {
+    const sourceDiffId = document.getElementById('source_diff_id').value;
+    const targetDiffId = document.getElementById('target_diff_id').value;
+    const relationType = document.getElementById('relation_type').value;
+    const confidence = parseInt(document.getElementById('confidence').value);
+    const description = document.getElementById('description').value;
+    const createdBy = document.getElementById('created_by').value;
+
+    if (!sourceDiffId || !targetDiffId || !relationType) {
+        alert('请填写完整信息');
+        return;
+    }
+
+    if (sourceDiffId === targetDiffId) {
+        alert('源异文和目标异文不能相同');
+        return;
+    }
+
+    const params = new URLSearchParams({
+        source_diff_id: sourceDiffId,
+        target_diff_id: targetDiffId
+    });
+
+    fetch(`/api/projects/{{ project.id }}/diff-relations?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            relation_type: relationType,
+            description: description,
+            confidence: confidence,
+            created_by: createdBy
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.id) {
+            alert('关联添加成功');
+            location.reload();
+        } else {
+            alert('添加失败: ' + (data.detail || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('添加关联失败:', error);
+        alert('添加失败');
+    });
+}
+
+function deleteRelation(relationId) {
+    if (!confirm('确定要删除这条关联吗？')) {
+        return;
+    }
+
+    fetch(`/api/projects/{{ project.id }}/diff-relations/${relationId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('删除成功');
+            location.reload();
+        } else {
+            alert('删除失败');
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    });
+}
+</script>
+{% endblock %}
