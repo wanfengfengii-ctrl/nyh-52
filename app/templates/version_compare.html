@@ -66,8 +66,8 @@
                 <label class="form-label fw-bold">选择段落</label>
                 <select class="form-select" id="paragraphSelect" onchange="onParagraphChange()" {% if not selected_volume %}disabled{% endif %}>
                     <option value="">-- 请选择段落 --</option>
-                    {% if selected_volume %}
-                    {% for i in range(1, 50) %}
+                    {% if selected_volume and max_paragraph_count > 0 %}
+                    {% for i in range(1, max_paragraph_count + 1) %}
                     <option value="{{ i }}" {% if selected_paragraph == i %}selected{% endif %}>第 {{ i }} 段</option>
                     {% endfor %}
                     {% endif %}

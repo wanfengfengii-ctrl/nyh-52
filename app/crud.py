@@ -182,7 +182,91 @@ def mark_notes_for_review_by_passage(db: Session, passage_id: int):
         for note in notes:
             note.needs_review = True
             note.is_final = False
+        if notes:
+            diff.status = "reviewed"
     db.commit()
+
+
+def backup_notes_for_passage(db: Session, passage_id: int):
+    diffs = db.query(models.Diff).filter(models.Diff.passage_id == passage_id).all()
+    backup = []
+    for diff in diffs:
+        notes = db.query(models.CollationNote).filter(
+            models.CollationNote.diff_id == diff.id
+        ).all()
+        for note in notes:
+            backup.append({
+                "diff_type": diff.diff_type,
+                "position_start": diff.position_start,
+                "position_end": diff.position_end,
+                "text": diff.text,
+                "reference_text": diff.reference_text,
+                "author": note.author,
+                "content": note.content,
+                "evidence": note.evidence,
+                "was_final": note.is_final,
+                "needs_review": True,
+                "created_at": note.created_at
+            })
+    return backup
+
+
+def restore_notes_to_new_diffs(db: Session, passage_id: int, notes_backup: list):
+    if not notes_backup:
+        return
+    
+    new_diffs = db.query(models.Diff).filter(models.Diff.passage_id == passage_id).all()
+    
+    has_final_notes = False
+    for old_note in notes_backup:
+        matched_diff = None
+        for d in new_diffs:
+            if (d.diff_type == old_note["diff_type"] and
+                d.position_start == old_note["position_start"] and
+                d.position_end == old_note["position_end"]):
+                matched_diff = d
+                break
+        
+        if matched_diff is None:
+            for d in new_diffs:
+                if d.diff_type == old_note["diff_type"]:
+                    matched_diff = d
+                    break
+        
+        if matched_diff:
+            new_note = models.CollationNote(
+                diff_id=matched_diff.id,
+                author=old_note["author"],
+                content=old_note["content"],
+                evidence=old_note["evidence"],
+                is_final=False,
+                needs_review=True,
+                created_at=old_note["created_at"]
+            )
+            db.add(new_note)
+            if old_note["was_final"]:
+                has_final_notes = True
+    
+    if has_final_notes:
+        for d in new_diffs:
+            if d.status == "finalized":
+                d.status = "reviewed"
+    
+    db.commit()
+
+
+def get_diffs_by_location(db: Session, project_id: int, volume_no: int, paragraph_no: int):
+    from app.models import Passage, Diff
+    passages = db.query(Passage).filter(
+        Passage.volume_no == volume_no,
+        Passage.paragraph_no == paragraph_no
+    ).all()
+    passage_ids = [p.id for p in passages]
+    if not passage_ids:
+        return []
+    return db.query(Diff).filter(
+        Diff.passage_id.in_(passage_ids)
+    ).all()
 
 
 def get_project_stats(db: Session, project_id: int) -> schemas.ProjectStats:

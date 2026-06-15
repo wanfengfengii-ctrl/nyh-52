@@ -117,12 +117,15 @@ async def edit_passage(
     if not passage:
         raise HTTPException(status_code=404, detail="段落不存在")
     
+    old_notes_backup = crud.backup_notes_for_passage(db, passage_id)
+    
     passage_update = schemas.PassageUpdate(content=content)
     updated = crud.update_passage(db, passage_id, passage_update)
     
-    business_rules.check_passage_modification_needs_review(db, passage_id)
     crud.delete_diffs_by_passage(db, passage_id)
     refresh_diffs_for_passage(db, project_id, passage_id)
+    
+    crud.restore_notes_to_new_diffs(db, passage_id, old_notes_backup)
     
     return RedirectResponse(
         f"/projects/{project_id}/passages?version_id={passage.version_id}&volume_no={passage.volume_no}&success=段落更新成功，相关校勘结论已标记待复核",

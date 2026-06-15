@@ -44,14 +44,26 @@ async def compare_page(
             "diff_type_labels": DIFF_TYPE_LABELS,
             "diff_type_colors": DIFF_TYPE_COLORS,
             "all_diffs": [],
-            "pending_count": 0
+            "pending_count": 0,
+            "max_paragraph_count": 0
         })
     
     all_volumes = set()
+    max_paragraph_by_volume = {}
     for v in versions:
         vols = crud.get_volumes_by_version(db, v.id)
         all_volumes.update(vols)
+        for vol in vols:
+            p_nums = crud.get_passage_paragraph_numbers(db, v.id, vol)
+            if p_nums:
+                current_max = max(p_nums)
+                if vol not in max_paragraph_by_volume or current_max > max_paragraph_by_volume[vol]:
+                    max_paragraph_by_volume[vol] = current_max
     volumes = sorted(all_volumes)
+    
+    max_paragraph_count = 0
+    if volume_no is not None and volume_no in max_paragraph_by_volume:
+        max_paragraph_count = max_paragraph_by_volume[volume_no]
     
     alignment_result = None
     all_diffs = []
@@ -83,11 +95,8 @@ async def compare_page(
                 rendered_result[v_name] = html_segments
             alignment_result = rendered_result
             
-            base_version = versions[0]
-            base_passage = crud.get_passage_by_location(db, base_version.id, volume_no, paragraph_no)
-            if base_passage:
-                all_diffs = crud.get_diffs_by_passage(db, base_passage.id)
-                pending_count = sum(1 for d in all_diffs if d.status == "pending")
+            all_diffs = crud.get_diffs_by_location(db, project_id, volume_no, paragraph_no)
+            pending_count = sum(1 for d in all_diffs if d.status == "pending")
     
     stats = crud.get_project_stats(db, project_id)
     
@@ -104,7 +113,8 @@ async def compare_page(
         "all_diffs": all_diffs,
         "pending_count": pending_count,
         "stats": stats,
-        "error": None
+        "error": None,
+        "max_paragraph_count": max_paragraph_count
     })
 
 
