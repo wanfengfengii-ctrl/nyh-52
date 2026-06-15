@@ -182,9 +182,14 @@
                         {% endif %}
                         <div><small class="text-muted">位置：第 {{ diff.position_start + 1 }} - {{ diff.position_end }} 字</small></div>
                     </div>
-                    <a href="/projects/{{ project.id }}/collation/{{ diff.id }}" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-chat-dots"></i> 校勘
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="/projects/{{ project.id }}/collation/{{ diff.id }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-chat-dots"></i> 校勘
+                        </a>
+                        <a href="/projects/{{ project.id }}/collaboration/{{ diff.id }}" class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-people"></i> 协同
+                        </a>
+                    </div>
                 </div>
             </div>
             {% endfor %}

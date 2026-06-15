@@ -287,6 +287,10 @@ def get_project_stats(db: Session, project_id: int) -> schemas.ProjectStats:
     if total_diffs > 0:
         progress_percent = round((finalized_diffs / total_diffs) * 100, 1)
     
+    recommended_texts = get_recommended_texts_by_project(db, project_id)
+    recommended_paragraphs = len(recommended_texts)
+    reviewed_recommended = sum(1 for rt in recommended_texts if rt.status == "reviewed")
+    
     return schemas.ProjectStats(
         total_versions=total_versions,
         total_passages=total_passages,
@@ -294,5 +298,295 @@ def get_project_stats(db: Session, project_id: int) -> schemas.ProjectStats:
         pending_diffs=pending_diffs,
         reviewed_diffs=reviewed_diffs,
         finalized_diffs=finalized_diffs,
-        progress_percent=progress_percent
+        progress_percent=progress_percent,
+        recommended_paragraphs=recommended_paragraphs,
+        reviewed_recommended=reviewed_recommended
     )
+
+
+def get_proposals_by_diff(db: Session, diff_id: int):
+    from app.models import CollationProposal
+    return db.query(CollationProposal).filter(
+        CollationProposal.diff_id == diff_id
+    ).order_by(CollationProposal.created_at.desc()).all()
+
+
+def get_proposal(db: Session, proposal_id: int):
+    from app.models import CollationProposal
+    return db.query(CollationProposal).filter(CollationProposal.id == proposal_id).first()
+
+
+def create_proposal(db: Session, proposal: schemas.CollationProposalCreate):
+    from app.models import CollationProposal
+    db_proposal = CollationProposal(**proposal.model_dump())
+    db.add(db_proposal)
+    db.commit()
+    db.refresh(db_proposal)
+    return db_proposal
+
+
+def update_proposal(db: Session, proposal_id: int, proposal_update: schemas.CollationProposalUpdate):
+    from app.models import CollationProposal
+    db_proposal = db.query(CollationProposal).filter(CollationProposal.id == proposal_id).first()
+    if db_proposal:
+        update_data = proposal_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_proposal, key, value)
+        db.commit()
+        db.refresh(db_proposal)
+    return db_proposal
+
+
+def accept_proposal(db: Session, proposal_id: int):
+    from app.models import CollationProposal
+    db_proposal = db.query(CollationProposal).filter(CollationProposal.id == proposal_id).first()
+    if db_proposal:
+        db.query(CollationProposal).filter(
+            CollationProposal.diff_id == db_proposal.diff_id
+        ).update({CollationProposal.is_accepted: False})
+        db_proposal.is_accepted = True
+        db.commit()
+        db.refresh(db_proposal)
+    return db_proposal
+
+
+def delete_proposal(db: Session, proposal_id: int):
+    from app.models import CollationProposal
+    db_proposal = db.query(CollationProposal).filter(CollationProposal.id == proposal_id).first()
+    if db_proposal:
+        db.delete(db_proposal)
+        db.commit()
+    return db_proposal
+
+
+def create_citation(db: Session, citation: schemas.LiteratureCitationCreate):
+    from app.models import LiteratureCitation
+    db_citation = LiteratureCitation(**citation.model_dump())
+    db.add(db_citation)
+    db.commit()
+    db.refresh(db_citation)
+    return db_citation
+
+
+def get_citations_by_proposal(db: Session, proposal_id: int):
+    from app.models import LiteratureCitation
+    return db.query(LiteratureCitation).filter(
+        LiteratureCitation.proposal_id == proposal_id
+    ).order_by(LiteratureCitation.created_at.desc()).all()
+
+
+def delete_citation(db: Session, citation_id: int):
+    from app.models import LiteratureCitation
+    db_citation = db.query(LiteratureCitation).filter(LiteratureCitation.id == citation_id).first()
+    if db_citation:
+        db.delete(db_citation)
+        db.commit()
+    return db_citation
+
+
+def create_vote(db: Session, vote: schemas.VoteCreate):
+    from app.models import Vote
+    existing = db.query(Vote).filter(
+        Vote.proposal_id == vote.proposal_id,
+        Vote.voter == vote.voter
+    ).first()
+    if existing:
+        existing.vote_type = vote.vote_type
+        existing.comment = vote.comment
+        db.commit()
+        db.refresh(existing)
+        return existing
+    db_vote = Vote(**vote.model_dump())
+    db.add(db_vote)
+    db.commit()
+    db.refresh(db_vote)
+    return db_vote
+
+
+def get_votes_by_proposal(db: Session, proposal_id: int):
+    from app.models import Vote
+    return db.query(Vote).filter(Vote.proposal_id == proposal_id).all()
+
+
+def get_vote_summary(db: Session, proposal_id: int) -> schemas.ProposalVoteSummary:
+    from app.models import Vote
+    votes = db.query(Vote).filter(Vote.proposal_id == proposal_id).all()
+    agree = sum(1 for v in votes if v.vote_type == "agree")
+    disagree = sum(1 for v in votes if v.vote_type == "disagree")
+    abstain = sum(1 for v in votes if v.vote_type == "abstain")
+    return schemas.ProposalVoteSummary(
+        proposal_id=proposal_id,
+        agree_count=agree,
+        disagree_count=disagree,
+        abstain_count=abstain,
+        total_votes=len(votes)
+    )
+
+
+def delete_vote(db: Session, proposal_id: int, voter: str):
+    from app.models import Vote
+    db_vote = db.query(Vote).filter(
+        Vote.proposal_id == proposal_id,
+        Vote.voter == voter
+    ).first()
+    if db_vote:
+        db.delete(db_vote)
+        db.commit()
+    return db_vote
+
+
+def get_discussions_by_diff(db: Session, diff_id: int):
+    from app.models import DiscussionMessage
+    return db.query(DiscussionMessage).filter(
+        DiscussionMessage.diff_id == diff_id
+    ).order_by(DiscussionMessage.created_at.asc()).all()
+
+
+def create_discussion_message(db: Session, message: schemas.DiscussionMessageCreate):
+    from app.models import DiscussionMessage
+    db_message = DiscussionMessage(**message.model_dump())
+    db.add(db_message)
+    db.commit()
+    db.refresh(db_message)
+    return db_message
+
+
+def get_discussion_message(db: Session, message_id: int):
+    from app.models import DiscussionMessage
+    return db.query(DiscussionMessage).filter(DiscussionMessage.id == message_id).first()
+
+
+def delete_discussion_message(db: Session, message_id: int):
+    from app.models import DiscussionMessage
+    db_message = db.query(DiscussionMessage).filter(DiscussionMessage.id == message_id).first()
+    if db_message:
+        db.delete(db_message)
+        db.commit()
+    return db_message
+
+
+def create_review_record(db: Session, record: schemas.ReviewRecordCreate):
+    from app.models import ReviewRecord
+    db_record = ReviewRecord(**record.model_dump())
+    db.add(db_record)
+    db.commit()
+    db.refresh(db_record)
+    return db_record
+
+
+def get_review_records_by_proposal(db: Session, proposal_id: int):
+    from app.models import ReviewRecord
+    return db.query(ReviewRecord).filter(
+        ReviewRecord.proposal_id == proposal_id
+    ).order_by(ReviewRecord.created_at.desc()).all()
+
+
+def get_recommended_texts_by_project(db: Session, project_id: int):
+    from app.models import RecommendedText
+    return db.query(RecommendedText).filter(
+        RecommendedText.project_id == project_id
+    ).order_by(RecommendedText.volume_no, RecommendedText.paragraph_no).all()
+
+
+def get_recommended_texts_by_volume(db: Session, project_id: int, volume_no: int):
+    from app.models import RecommendedText
+    return db.query(RecommendedText).filter(
+        RecommendedText.project_id == project_id,
+        RecommendedText.volume_no == volume_no
+    ).order_by(RecommendedText.paragraph_no).all()
+
+
+def get_recommended_text(db: Session, project_id: int, volume_no: int, paragraph_no: int):
+    from app.models import RecommendedText
+    return db.query(RecommendedText).filter(
+        RecommendedText.project_id == project_id,
+        RecommendedText.volume_no == volume_no,
+        RecommendedText.paragraph_no == paragraph_no
+    ).first()
+
+
+def get_recommended_text_by_id(db: Session, recommended_text_id: int):
+    from app.models import RecommendedText
+    return db.query(RecommendedText).filter(RecommendedText.id == recommended_text_id).first()
+
+
+def create_recommended_text(db: Session, recommended_text: schemas.RecommendedTextCreate):
+    from app.models import RecommendedText
+    db_rt = RecommendedText(**recommended_text.model_dump())
+    db.add(db_rt)
+    db.commit()
+    db.refresh(db_rt)
+    return db_rt
+
+
+def update_recommended_text(db: Session, recommended_text_id: int, rt_update: schemas.RecommendedTextUpdate):
+    from app.models import RecommendedText
+    from datetime import datetime
+    db_rt = db.query(RecommendedText).filter(RecommendedText.id == recommended_text_id).first()
+    if db_rt:
+        update_data = rt_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_rt, key, value)
+        if "status" in update_data and update_data["status"] == "reviewed":
+            db_rt.reviewed_at = datetime.now()
+        db.commit()
+        db.refresh(db_rt)
+    return db_rt
+
+
+def delete_recommended_text(db: Session, recommended_text_id: int):
+    from app.models import RecommendedText
+    db_rt = db.query(RecommendedText).filter(RecommendedText.id == recommended_text_id).first()
+    if db_rt:
+        db.delete(db_rt)
+        db.commit()
+    return db_rt
+
+
+def create_recommended_text_evidence(db: Session, evidence: schemas.RecommendedTextEvidenceCreate):
+    from app.models import RecommendedTextEvidence
+    db_evidence = RecommendedTextEvidence(**evidence.model_dump())
+    db.add(db_evidence)
+    db.commit()
+    db.refresh(db_evidence)
+    return db_evidence
+
+
+def get_evidences_by_recommended_text(db: Session, recommended_text_id: int):
+    from app.models import RecommendedTextEvidence
+    return db.query(RecommendedTextEvidence).filter(
+        RecommendedTextEvidence.recommended_text_id == recommended_text_id
+    ).all()
+
+
+def get_volume_progress(db: Session, project_id: int) -> list:
+    from app.models import RecommendedText, Passage, Version
+    versions = get_versions_by_project(db, project_id)
+    if not versions:
+        return []
+    
+    base_version = versions[0]
+    volumes = get_volumes_by_version(db, base_version.id)
+    
+    progress_list = []
+    for vol in volumes:
+        passages = get_passages_by_version_volume(db, base_version.id, vol)
+        total_paragraphs = len(passages)
+        
+        recommended = get_recommended_texts_by_volume(db, project_id, vol)
+        recommended_count = len(recommended)
+        reviewed_count = sum(1 for rt in recommended if rt.status == "reviewed")
+        
+        progress_percent = 0.0
+        if total_paragraphs > 0:
+            progress_percent = round((reviewed_count / total_paragraphs) * 100, 1)
+        
+        progress_list.append(schemas.VolumeProgress(
+            volume_no=vol,
+            total_paragraphs=total_paragraphs,
+            recommended_count=recommended_count,
+            reviewed_count=reviewed_count,
+            progress_percent=progress_percent
+        ))
+    
+    return progress_list

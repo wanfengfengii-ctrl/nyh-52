@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}协同决议 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 style="color: #2c3e50;">
+            <i class="bi bi-people"></i> 协同决议
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/">首页</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}/compare">版本对照</a></li>
+                <li class="breadcrumb-item active">协同决议</li>
+            </ol>
+        </nav>
+    </div>
+    <a href="/projects/{{ project.id }}/compare{% if passage %}?volume_no={{ passage.volume_no }}&paragraph_no={{ passage.paragraph_no }}{% endif %}" 
+       class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 返回对照
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2c3e50; color: white;">
+        <h5 class="mb-0">
+            <span class="badge me-2" style="background-color: {{ diff_color }};">{{ diff_label }}</span>
+            差异详情
+        </h5>
+        <span class="badge 
+            {% if diff.status == 'pending' %}bg-secondary
+            {% elif diff.status == 'reviewed' %}bg-warning text-dark
+            {% elif diff.status == 'finalized' %}bg-success{% endif %} fs-6">
+            {% if diff.status == 'pending' %}待处理
+            {% elif diff.status == 'reviewed' %}复核中
+            {% elif diff.status == 'finalized' %}已定论{% endif %}
+        </span>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="text-muted fw-bold">所在版本</label>
+                <p>{% if version %}{{ version.name }}{% else %}-{% endif %}</p>
+            </div>
+            <div class="col-md-4">
+                <label class="text-muted fw-bold">位置</label>
+                <p>{% if passage %}卷 {{ passage.volume_no }} · 第 {{ passage.paragraph_no }} 段{% else %}-{% endif %}</p>
+            </div>
+            <div class="col-md-4">
+                <label class="text-muted fw-bold">差异类型</label>
+                <p>{{ diff.diff_type }}</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <label class="text-muted fw-bold">原文（参照）</label>
+                <div class="p-3 rounded" style="background-color: #f5f0e8; font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.15rem;">
+                    {{ diff.reference_text or '（无）' }}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="text-muted fw-bold">异文</label>
+                <div class="p-3 rounded" style="background-color: {{ diff_color }}15; font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.15rem; border: 1px solid {{ diff_color }}40;">
+                    <span style="color: {{ diff_color }};">{{ diff.text or '（缺字）' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="collaborationTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="proposals-tab" data-bs-toggle="tab" data-bs-target="#proposals" type="button">
+            <i class="bi bi-lightbulb"></i> 校勘方案 ({{ proposals_with_details|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="discussions-tab" data-bs-toggle="tab" data-bs-target="#discussions" type="button">
+            <i class="bi bi-chat-dots"></i> 讨论区 ({{ discussions|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="collaborationTabsContent">
+    <div class="tab-pane fade show active" id="proposals" role="tabpanel">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #c0392b; color: white;">
+                <h5 class="mb-0"><i class="bi bi-plus-circle"></i> 提交校勘方案</h5>
+                <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#proposalForm">
+                    <i class="bi bi-chevron-down"></i> 展开/收起
+                </button>
+            </div>
+            <div class="collapse show" id="proposalForm">
+                <div class="card-body">
+                    <form method="POST" action="/projects/{{ project.id }}/collaboration/{{ diff.id }}/proposals">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label for="author" class="form-label fw-bold">提交人 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="author" name="author" required placeholder="请输入您的姓名">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="title" class="form-label fw-bold">方案标题 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="title" name="title" required placeholder="简短描述您的方案">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="proposed_text" class="form-label fw-bold">校勘后文本 <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="proposed_text" name="proposed_text" rows="3" required
+                                      placeholder="请输入您认为正确的文本内容"></textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label for="rationale" class="form-label fw-bold">论证理由 <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="rationale" name="rationale" rows="4" required
+                                      placeholder="请详细说明您的校勘理由，包括字形分析、文义推敲、版本对比等"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;">
+                                <i class="bi bi-send"></i> 提交方案
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {% if proposals_with_details %}
+            {% for item in proposals_with_details %}
+            {% set p = item.proposal %}
+            {% set vote_summary = item.vote_summary %}
+            {% set citations = item.citations %}
+            {% set review_records = item.review_records %}
+            <div class="card mb-4 {% if p.is_accepted %}border-success{% endif %}" id="proposal-{{ p.id }}">
+                <div class="card-header d-flex justify-content-between align-items-center 
+                            {% if p.is_accepted %}bg-success text-white
+                            {% else %}bg-light{% endif %}">
+                    <div>
+                        <h6 class="mb-1 fw-bold">
+                            {% if p.is_accepted %}
+                            <i class="bi bi-award-fill"></i>
+                            {% endif %}
+                            {{ p.title }}
+                        </h6>
+                        <small>{{ p.author }} · {{ p.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                    {% if p.is_accepted %}
+                    <span class="badge bg-white text-success fs-6"><i class="bi bi-check2-circle"></i> 已采纳</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1"><i class="bi bi-file-text"></i> 校勘后文本</h6>
+                        <div class="p-3 rounded" style="background-color: #f5f0e8; font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.1rem;">
+                            {{ p.proposed_text }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1"><i class="bi bi-journal-text"></i> 论证理由</h6>
+                        <p class="mb-0" style="white-space: pre-wrap;">{{ p.rationale }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-2"><i class="bi bi-hand-thumbs-up"></i> 投票</h6>
+                        <div class="d-flex gap-2 mb-2">
+                            <span class="badge bg-success">赞成 {{ vote_summary.agree_count }}</span>
+                            <span class="badge bg-danger">反对 {{ vote_summary.disagree_count }}</span>
+                            <span class="badge bg-secondary">弃权 {{ vote_summary.abstain_count }}</span>
+                            <span class="badge bg-info">总计 {{ vote_summary.total_votes }}</span>
+                        </div>
+                        <form method="POST" action="/projects/{{ project.id }}/collaboration/{{ diff.id }}/proposals/{{ p.id }}/vote" class="row g-2">
+                            <div class="col-md-3">
+                                <input type="text" class="form-control form-control-sm" name="voter" placeholder="您的姓名" required>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select form-select-sm" name="vote_type" required>
+                                    <option value="agree">赞成</option>
+                                    <option value="disagree">反对</option>
+                                    <option value="abstain">弃权</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" class="form-control form-control-sm" name="comment" placeholder="投票意见（可选）">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm btn-outline-primary w-100">投票</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="text-muted mb-0"><i class="bi bi-book"></i> 文献引用 ({{ citations|length }})</h6>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#citationForm-{{ p.id }}">
+                                <i class="bi bi-plus"></i> 添加引用
+                            </button>
+                        </div>
+                        <div class="collapse mb-2" id="citationForm-{{ p.id }}">
+                            <form method="POST" action="/projects/{{ project.id }}/collaboration/{{ diff.id }}/proposals/{{ p.id }}/citations" class="border rounded p-3 bg-light">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6">
+                                        <input type="text" class="form-control form-control-sm" name="title" placeholder="文献标题 *" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control form-control-sm" name="author" placeholder="作者">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control form-control-sm" name="publication" placeholder="出版物">
+                                    </div>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control form-control-sm" name="page_info" placeholder="页码信息">
+                                    </div>
+                                    <div class="col-md-9">
+                                        <input type="text" class="form-control form-control-sm" name="quote_text" placeholder="引用原文">
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <textarea class="form-control form-control-sm" name="note" rows="2" placeholder="备注说明"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary">添加引用</button>
+                            </form>
+                        </div>
+                        {% if citations %}
+                        <div class="list-group list-group-flush">
+                            {% for cite in citations %}
+                            <div class="list-group-item px-0 py-2">
+                                <div class="fw-bold">{{ cite.title }}</div>
+                                <small class="text-muted">
+                                    {% if cite.author %}{{ cite.author }} · {% endif %}
+                                    {% if cite.publication %}{{ cite.publication }}{% endif %}
+                                    {% if cite.page_info %} · {{ cite.page_info }}{% endif %}
+                                </small>
+                                {% if cite.quote_text %}
+                                <p class="mt-1 mb-1 fst-italic" style="color: #666;">"{{ cite.quote_text }}"</p>
+                                {% endif %}
+                                {% if cite.note %}
+                                <small>{{ cite.note }}</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small mb-0">暂无文献引用</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="text-muted mb-0"><i class="bi bi-clipboard-check"></i> 审核记录 ({{ review_records|length }})</h6>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#reviewForm-{{ p.id }}">
+                                <i class="bi bi-plus"></i> 添加审核
+                            </button>
+                        </div>
+                        <div class="collapse mb-2" id="reviewForm-{{ p.id }}">
+                            <form method="POST" action="/projects/{{ project.id }}/collaboration/{{ diff.id }}/proposals/{{ p.id }}/review" class="border rounded p-3 bg-light">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control form-control-sm" name="reviewer" placeholder="审核人 *" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-select form-select-sm" name="review_result" required>
+                                            <option value="pass">通过</option>
+                                            <option value="reject">驳回</option>
+                                            <option value="comment">仅评论</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <textarea class="form-control form-control-sm" name="review_comment" rows="2" placeholder="审核意见"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary">提交审核</button>
+                            </form>
+                        </div>
+                        {% if review_records %}
+                        <div class="list-group list-group-flush">
+                            {% for record in review_records %}
+                            <div class="list-group-item px-0 py-2">
+                                <div class="d-flex justify-content-between">
+                                    <span>
+                                        <span class="badge 
+                                            {% if record.review_result == 'pass' %}bg-success
+                                            {% elif record.review_result == 'reject' %}bg-danger
+                                            {% else %}bg-secondary{% endif %}">
+                                            {% if record.review_result == 'pass' %}通过
+                                            {% elif record.review_result == 'reject' %}驳回
+                                            {% else %}评论{% endif %}
+                                        </span>
+                                        <strong class="ms-2">{{ record.reviewer }}</strong>
+                                    </span>
+                                    <small class="text-muted">{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                                {% if record.review_comment %}
+                                <p class="mt-1 mb-0 small">{{ record.review_comment }}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small mb-0">暂无审核记录</p>
+                        {% endif %}
+                    </div>
+
+                    {% if not p.is_accepted %}
+                    <div class="d-flex gap-2">
+                        <form method="POST" action="/projects/{{ project.id }}/collaboration/{{ diff.id }}/proposals/{{ p.id }}/accept">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="bi bi-check2-circle"></i> 采纳此方案
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-lightbulb" style="font-size: 3rem;"></i>
+            <p class="mt-3 mb-0">暂无校勘方案，请在上方提交您的方案</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="tab-pane fade" id="discussions" role="tabpanel">
+        <div class="card mb-4">
+            <div class="card-header" style="background-color: #2c3e50; color: white;">
+                <h5 class="mb-0"><i class="bi bi-chat-dots"></i> 发起讨论</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/projects/{{ project.id }}/collaboration/{{ diff.id }}/discussions">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="disc_author" class="form-label fw-bold">发言者 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="disc_author" name="author" required placeholder="请输入您的姓名">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="disc_content" class="form-label fw-bold">讨论内容 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="disc_content" name="content" rows="3" required
+                                  placeholder="请输入您的讨论内容、疑问或建议"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary" style="background-color: #2c3e50; border-color: #2c3e50;">
+                            <i class="bi bi-send"></i> 发表
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header" style="background-color: #f5f0e8;">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> 讨论历史 ({{ discussions|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if discussions %}
+                <div class="timeline">
+                    {% for msg in discussions %}
+                    <div class="timeline-item mb-4">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content ms-4">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                    <div>
+                                        <strong>{{ msg.author }}</strong>
+                                        {% if msg.reply_to_id %}
+                                        <span class="badge bg-info ms-2">回复</span>
+                                        {% endif %}
+                                    </div>
+                                    <small>{{ msg.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-0" style="white-space: pre-wrap;">{{ msg.content }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+                    <p class="mt-3 mb-0">暂无讨论，请在上方发起讨论</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}校勘方案 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 style="color: #2c3e50;">
+            <i class="bi bi-lightbulb"></i> 校勘方案列表
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/">首页</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item active">校勘方案</li>
+            </ol>
+        </nav>
+    </div>
+    <a href="/projects/{{ project.id }}/compare" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 返回对照
+    </a>
+</div>
+
+{% if proposals_data %}
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>方案标题</th>
+                <th>提交人</th>
+                <th>差异位置</th>
+                <th>版本</th>
+                <th>投票</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in proposals_data %}
+            <tr>
+                <td>
+                    <div class="fw-bold">{{ item.proposal.title }}</div>
+                    <div class="text-muted small" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;">
+                        {{ item.proposal.proposed_text }}
+                    </div>
+                </td>
+                <td>{{ item.proposal.author }}</td>
+                <td>
+                    {% if item.passage %}
+                    卷 {{ item.passage.volume_no }} · 段 {{ item.passage.paragraph_no }}
+                    {% else %}-{% endif %}
+                </td>
+                <td>{% if item.version %}{{ item.version.name }}{% else %}-{% endif %}</td>
+                <td>
+                    <span class="badge bg-success">赞 {{ item.vote_summary.agree_count }}</span>
+                    <span class="badge bg-danger">反 {{ item.vote_summary.disagree_count }}</span>
+                </td>
+                <td>
+                    {% if item.proposal.is_accepted %}
+                    <span class="badge bg-success"><i class="bi bi-award"></i> 已采纳</span>
+                    {% else %}
+                    <span class="badge bg-secondary">待决议</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/projects/{{ project.id }}/collaboration/{{ item.diff.id }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> 查看
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-lightbulb" style="font-size: 3rem;"></i>
+    <p class="mt-3 mb-0">暂无校勘方案</p>
+    <p class="mb-0">
+        <a href="/projects/{{ project.id }}/compare">前往版本对照页面提交校勘方案</a>
+    </p>
+</div>
+{% endif %}
+
+{% endblock %}

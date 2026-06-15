@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}生成推荐文本 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 style="color: #2c3e50;">
+            <i class="bi bi-magic"></i> 生成推荐文本
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/">首页</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}/recommended">推荐文本</a></li>
+                <li class="breadcrumb-item active">生成</li>
+            </ol>
+        </nav>
+    </div>
+    <a href="/projects/{{ project.id }}/recommended" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 返回列表
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header" style="background-color: #2c3e50; color: white;">
+                <h6 class="mb-0"><i class="bi bi-gear"></i> 生成设置</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="base_version" class="form-label fw-bold">基础版本</label>
+                    <select class="form-select" id="base_version" onchange="updateVolumes()">
+                        {% for v in versions %}
+                        <option value="{{ v.id }}" {% if v.id == base_version.id %}selected{% endif %}>
+                            {{ v.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">以该版本为基础生成推荐文本</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="volume_no" class="form-label fw-bold">选择卷</label>
+                    <select class="form-select" id="volume_no" onchange="updateParagraphs()">
+                        <option value="">请选择卷</option>
+                        {% for vol in volumes %}
+                        <option value="{{ vol }}" {% if selected_volume == vol %}selected{% endif %}>
+                            卷 {{ vol }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="paragraph_no" class="form-label fw-bold">选择段落</label>
+                    <select class="form-select" id="paragraph_no">
+                        <option value="">请选择段落</option>
+                        {% if max_paragraph_count %}
+                        {% for i in range(1, max_paragraph_count + 1) %}
+                        <option value="{{ i }}" {% if selected_paragraph == i %}selected{% endif %}>
+                            第 {{ i }} 段
+                        </option>
+                        {% endfor %}
+                        {% endif %}
+                    </select>
+                    <div class="form-text">留空则生成整卷</div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="generated_by" class="form-label fw-bold">生成人</label>
+                    <input type="text" class="form-control" id="generated_by" placeholder="请输入您的姓名">
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;"
+                            onclick="generateSingleParagraph()" id="generateSingleBtn" disabled>
+                        <i class="bi bi-file-earmark-plus"></i> 生成单段
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" 
+                            onclick="generateVolume()" id="generateVolumeBtn" disabled>
+                        <i class="bi bi-folder-plus"></i> 生成整卷
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 说明</h6>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 small">
+                    <li>系统将基于选定的基础版本生成推荐文本</li>
+                    <li>已采纳的校勘方案会自动应用到推荐文本中</li>
+                    <li>生成的推荐文本初始状态为"草稿"</li>
+                    <li>需审核后推荐文本才算最终确定</li>
+                    <li>整卷生成会跳过已存在推荐文本的段落</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #f5f0e8;">
+                <h6 class="mb-0"><i class="bi bi-eye"></i> 预览</h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-file-earmark-text" style="font-size: 4rem;"></i>
+                    <p class="mt-3 mb-0">请选择卷和段落查看预览</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="generateSingleForm" method="POST" action="/projects/{{ project.id }}/recommended/generate" style="display: none;">
+    <input type="hidden" name="volume_no" id="form_volume_no">
+    <input type="hidden" name="paragraph_no" id="form_paragraph_no">
+    <input type="hidden" name="base_version_id" id="form_base_version_id">
+    <input type="hidden" name="generated_by" id="form_generated_by">
+</form>
+
+<form id="generateVolumeForm" method="POST" action="/projects/{{ project.id }}/recommended/generate-volume" style="display: none;">
+    <input type="hidden" name="volume_no" id="form_volume_no_vol">
+    <input type="hidden" name="base_version_id" id="form_base_version_id_vol">
+    <input type="hidden" name="generated_by" id="form_generated_by_vol">
+</form>
+
+<script>
+function updateVolumes() {
+    const baseVersionId = document.getElementById('base_version').value;
+    const projectId = {{ project.id }};
+    window.location.href = `/projects/${projectId}/recommended/generate?base_version_id=${baseVersionId}`;
+}
+
+function updateParagraphs() {
+    const volumeNo = document.getElementById('volume_no').value;
+    const baseVersionId = document.getElementById('base_version').value;
+    const projectId = {{ project.id }};
+    
+    const generateSingleBtn = document.getElementById('generateSingleBtn');
+    const generateVolumeBtn = document.getElementById('generateVolumeBtn');
+    
+    if (volumeNo) {
+        generateVolumeBtn.disabled = false;
+        window.location.href = `/projects/${projectId}/recommended/generate?volume_no=${volumeNo}`;
+    } else {
+        generateSingleBtn.disabled = true;
+        generateVolumeBtn.disabled = true;
+    }
+}
+
+function checkParagraph() {
+    const paragraphNo = document.getElementById('paragraph_no').value;
+    const generateSingleBtn = document.getElementById('generateSingleBtn');
+    generateSingleBtn.disabled = !paragraphNo;
+}
+
+function generateSingleParagraph() {
+    const volumeNo = document.getElementById('volume_no').value;
+    const paragraphNo = document.getElementById('paragraph_no').value;
+    const baseVersionId = document.getElementById('base_version').value;
+    const generatedBy = document.getElementById('generated_by').value;
+    
+    if (!volumeNo || !paragraphNo) {
+        alert('请选择卷和段落');
+        return;
+    }
+    
+    document.getElementById('form_volume_no').value = volumeNo;
+    document.getElementById('form_paragraph_no').value = paragraphNo;
+    document.getElementById('form_base_version_id').value = baseVersionId;
+    document.getElementById('form_generated_by').value = generatedBy;
+    document.getElementById('generateSingleForm').submit();
+}
+
+function generateVolume() {
+    const volumeNo = document.getElementById('volume_no').value;
+    const baseVersionId = document.getElementById('base_version').value;
+    const generatedBy = document.getElementById('generated_by').value;
+    
+    if (!volumeNo) {
+        alert('请选择卷');
+        return;
+    }
+    
+    if (confirm('确定要生成整卷的推荐文本吗？这可能需要一些时间。')) {
+        document.getElementById('form_volume_no_vol').value = volumeNo;
+        document.getElementById('form_base_version_id_vol').value = baseVersionId;
+        document.getElementById('form_generated_by_vol').value = generatedBy;
+        document.getElementById('generateVolumeForm').submit();
+    }
+}
+
+document.getElementById('paragraph_no').addEventListener('change', checkParagraph);
+checkParagraph();
+</script>
+
+{% endblock %}

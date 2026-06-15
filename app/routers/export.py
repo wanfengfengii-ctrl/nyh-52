@@ -96,3 +96,60 @@ async def export_project(
         media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded_filename}"}
     )
+
+
+@router.get("/projects/{project_id}/export/recommended")
+async def export_recommended(
+    project_id: int,
+    volume_no: Optional[int] = None,
+    include_evidence: bool = True,
+    db: Session = Depends(get_db)
+):
+    project = crud.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    
+    content = export.generate_recommended_text_export(db, project_id, volume_no, include_evidence)
+    
+    filename = f"recommended_text_project_{project_id}"
+    if volume_no:
+        filename = f"recommended_text_project_{project_id}_vol_{volume_no}"
+    filename += ".txt"
+    
+    encoded_filename = quote(f"{project.name}_推荐文本整理本.txt")
+    if volume_no:
+        encoded_filename = quote(f"{project.name}_卷{volume_no}_推荐文本.txt")
+    
+    return PlainTextResponse(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded_filename}"}
+    )
+
+
+@router.get("/projects/{project_id}/export/collaboration")
+async def export_collaboration(
+    project_id: int,
+    volume_no: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    project = crud.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    
+    content = export.generate_collaboration_report(db, project_id, volume_no)
+    
+    filename = f"collaboration_report_project_{project_id}"
+    if volume_no:
+        filename = f"collaboration_report_project_{project_id}_vol_{volume_no}"
+    filename += ".txt"
+    
+    encoded_filename = quote(f"{project.name}_协同校勘报告.txt")
+    if volume_no:
+        encoded_filename = quote(f"{project.name}_卷{volume_no}_协同报告.txt")
+    
+    return PlainTextResponse(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded_filename}"}
+    )

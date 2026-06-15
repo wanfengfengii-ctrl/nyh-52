@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}推荐文本 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 style="color: #2c3e50;">
+            <i class="bi bi-file-earmark-text"></i> 推荐文本管理
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/">首页</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item active">推荐文本</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/projects/{{ project.id }}/recommended/preview{% if selected_volume %}?volume_no={{ selected_volume }}{% endif %}" 
+           class="btn btn-outline-info">
+            <i class="bi bi-eye"></i> 预览
+        </a>
+        <a href="/projects/{{ project.id }}/recommended/generate" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;">
+            <i class="bi bi-plus-circle"></i> 生成推荐文本
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header" style="background-color: #2c3e50; color: white;">
+                <h6 class="mb-0"><i class="bi bi-collection"></i> 按卷统计</h6>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for vp in volume_progress %}
+                <a href="/projects/{{ project.id }}/recommended?volume_no={{ vp.volume_no }}" 
+                   class="list-group-item list-group-item-action {% if selected_volume == vp.volume_no %}active{% endif %}"
+                   style="{% if selected_volume == vp.volume_no %}background-color: #2c3e50; border-color: #2c3e50;{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>卷 {{ vp.volume_no }}</span>
+                        <span class="badge {% if selected_volume == vp.volume_no %}bg-white text-dark{% else %}bg-secondary{% endif %}">
+                            {{ vp.reviewed_count }}/{{ vp.total_paragraphs }}
+                        </span>
+                    </div>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar {% if selected_volume == vp.volume_no %}bg-white{% else %}bg-success{% endif %}" 
+                             style="width: {{ vp.progress_percent }}%;"></div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #c0392b; color: white;">
+                <h6 class="mb-0">
+                    {% if selected_volume %}
+                    <i class="bi bi-book"></i> 卷 {{ selected_volume }} - 推荐文本列表
+                    {% else %}
+                    <i class="bi bi-info-circle"></i> 项目概览
+                    {% endif %}
+                </h6>
+                <div>
+                    <span class="badge bg-light text-dark">
+                        已生成 {{ stats.recommended_paragraphs }} 段
+                    </span>
+                    <span class="badge bg-success ms-2">
+                        已审核 {{ stats.reviewed_recommended }} 段
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if selected_volume %}
+                    {% if recommended_texts %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th width="100">段落</th>
+                                    <th>推荐文本</th>
+                                    <th width="100">状态</th>
+                                    <th width="150">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rt in recommended_texts %}
+                                <tr>
+                                    <td><span class="badge bg-secondary">{{ rt.paragraph_no }}</span></td>
+                                    <td>
+                                        <div style="font-family: 'Noto Serif SC', serif; font-size: 0.95rem; line-height: 1.6; max-height: 3.2em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                                            {{ rt.content }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if rt.status == 'draft' %}
+                                        <span class="badge bg-secondary">草稿</span>
+                                        {% elif rt.status == 'reviewed' %}
+                                        <span class="badge bg-success">已审核</span>
+                                        {% else %}
+                                        <span class="badge bg-info">{{ rt.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" type="button" 
+                                                data-bs-toggle="modal" data-bs-target="#editModal-{{ rt.id }}">
+                                            <i class="bi bi-pencil"></i> 编辑
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-file-earmark-text" style="font-size: 3rem;"></i>
+                        <p class="mt-3 mb-0">该卷暂无推荐文本</p>
+                        <p class="mb-0">
+                            <a href="/projects/{{ project.id }}/recommended/generate?volume_no={{ selected_volume }}">
+                                点击这里生成推荐文本
+                            </a>
+                        </p>
+                    </div>
+                    {% endif %}
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-arrow-left" style="font-size: 2rem;"></i>
+                    <p class="mt-3 mb-0">请从左侧选择卷查看推荐文本</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for rt in recommended_texts %}
+<div class="modal fade" id="editModal-{{ rt.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #2c3e50; color: white;">
+                <h5 class="modal-title">编辑推荐文本 - 第 {{ rt.paragraph_no }} 段</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/projects/{{ project.id }}/recommended/{{ rt.id }}/edit">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">当前状态</label>
+                        <div>
+                            {% if rt.status == 'draft' %}
+                            <span class="badge bg-secondary">草稿</span>
+                            {% elif rt.status == 'reviewed' %}
+                            <span class="badge bg-success">已审核</span>
+                            {% endif %}
+                            {% if rt.reviewed_by %}
+                            <span class="ms-2 text-muted small">审核人: {{ rt.reviewed_by }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="content-{{ rt.id }}" class="form-label fw-bold">推荐文本内容</label>
+                        <textarea class="form-control" id="content-{{ rt.id }}" name="content" rows="8" required
+                                  style="font-family: 'Noto Serif SC', serif; font-size: 1.05rem; line-height: 1.8;">{{ rt.content }}</textarea>
+                    </div>
+                    {% if rt.evidences %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">依据来源</label>
+                        <div class="list-group list-group-flush border rounded">
+                            {% for ev in rt.evidences %}
+                            <div class="list-group-item py-2">
+                                <div class="d-flex justify-content-between">
+                                    <span class="badge bg-info">{{ ev.evidence_type }}</span>
+                                    {% if ev.source_version_name %}
+                                    <small class="text-muted">来源: {{ ev.source_version_name }}</small>
+                                    {% endif %}
+                                </div>
+                                {% if ev.description %}
+                                <p class="mb-0 mt-1 small">{{ ev.description }}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;">
+                        <i class="bi bi-save"></i> 保存修改
+                    </button>
+                </div>
+            </form>
+            <div class="modal-footer border-top pt-3">
+                <h6 class="w-100 mb-3">审核操作</h6>
+                <form method="POST" action="/projects/{{ project.id }}/recommended/{{ rt.id }}/review" class="d-inline">
+                    <input type="hidden" name="action" value="approve">
+                    <input type="hidden" name="reviewed_by" value="当前用户">
+                    <button type="button" class="btn btn-success" onclick="promptReviewer(this, 'approve')">
+                        <i class="bi bi-check2-circle"></i> 审核通过
+                    </button>
+                </form>
+                <form method="POST" action="/projects/{{ project.id }}/recommended/{{ rt.id }}/review" class="d-inline">
+                    <input type="hidden" name="action" value="reject">
+                    <input type="hidden" name="reviewed_by" value="当前用户">
+                    <button type="button" class="btn btn-warning text-white" onclick="promptReviewer(this, 'reject')">
+                        <i class="bi bi-arrow-counterclockwise"></i> 退回草稿
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+function promptReviewer(btn, action) {
+    const reviewer = prompt('请输入审核人姓名：');
+    if (reviewer && reviewer.trim()) {
+        const form = btn.closest('form');
+        form.querySelector('input[name="reviewed_by"]').value = reviewer.trim();
+        form.submit();
+    }
+}
+</script>
+
+{% endblock %}
