@@ -25,10 +25,10 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <strong>节点总数:</strong> {{ graph_data.nodes|length }}
+                    <strong>节点总数:</strong> <span id="stat-nodes">{{ graph_data.nodes|length }}</span>
                 </div>
                 <div class="mb-3">
-                    <strong>关系总数:</strong> {{ graph_data.edges|length }}
+                    <strong>关系总数:</strong> <span id="stat-edges">{{ graph_data.edges|length }}</span>
                 </div>
                 <hr>
                 <h6>节点类型分布</h6>
@@ -106,7 +106,7 @@
 
 <div class="card">
     <div class="card-header">
-        <i class="bi bi-search"></i> 节点搜索
+        <i class="bi bi-search"></i> 节点搜索与筛选
     </div>
     <div class="card-body">
         <div class="row">
@@ -114,15 +114,54 @@
                 <input type="text" id="search-input" class="form-control" placeholder="输入关键词搜索节点..." onkeyup="searchNodes()">
             </div>
             <div class="col-md-3">
-                <select id="filter-type" class="form-select" onchange="filterNodes()">
-                    <option value="">所有类型</option>
+                <select id="filter-node-type" class="form-select" onchange="applyFilters()">
+                    <option value="">所有节点类型</option>
                     {% for nt in node_types %}
                     <option value="{{ nt }}">{{ nt }}</option>
                     {% endfor %}
                 </select>
             </div>
+            <div class="col-md-3">
+                <select id="filter-edge-type" class="form-select" onchange="applyFilters()">
+                    <option value="">所有关系类型</option>
+                    {% for et in edge_types %}
+                    <option value="{{ et }}">{{ et }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">
+                    <i class="bi bi-x-circle"></i> 重置筛选
+                </button>
+            </div>
+        </div>
+        <div class="mt-2 small text-muted">
+            <i class="bi bi-info-circle"></i>
+            <span id="filter-info">当前显示所有节点和关系</span>
         </div>
         <div id="search-results" class="mt-3"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="nodeDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="nodeDetailTitle">节点详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="nodeDetailBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-3 text-muted">正在加载节点详情...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -141,16 +180,68 @@
     font-size: 12px;
     pointer-events: none;
 }
+.detail-section {
+    margin-bottom: 20px;
+}
+.detail-section h6 {
+    border-bottom: 2px solid #0d6efd;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    color: #0d6efd;
+}
+.badge-version {
+    background-color: #3498db;
+}
+.badge-diff {
+    background-color: #e74c3c;
+}
+.badge-proposal {
+    background-color: #f39c12;
+}
+.badge-citation {
+    background-color: #1abc9c;
+}
+.timeline-item {
+    position: relative;
+    padding-left: 25px;
+    margin-bottom: 10px;
+}
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #0d6efd;
+}
+.timeline-item::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 20px;
+    width: 2px;
+    height: calc(100% + 5px);
+    background-color: #dee2e6;
+}
+.timeline-item:last-child::after {
+    display: none;
+}
 </style>
 
 <script>
 let graphData = { nodes: [], edges: [] };
+let filteredData = { nodes: [], edges: [] };
 let svg, g, zoom;
-let currentScale = 1;
+let currentNodeTypeFilter = '';
+let currentEdgeTypeFilter = '';
+let nodeDetailModal;
 
 document.addEventListener('DOMContentLoaded', function() {
     initGraph();
     loadGraphData();
+    nodeDetailModal = new bootstrap.Modal(document.getElementById('nodeDetailModal'));
 });
 
 function initGraph() {
@@ -172,13 +263,76 @@ function initGraph() {
 }
 
 function loadGraphData() {
-    fetch(`/api/projects/{{ project.id }}/graph`)
+    const nodeType = document.getElementById('filter-node-type').value;
+    const edgeType = document.getElementById('filter-edge-type').value;
+
+    let url = `/api/projects/{{ project.id }}/graph`;
+    const params = [];
+    if (nodeType) params.push(`node_type=${encodeURIComponent(nodeType)}`);
+    if (edgeType) params.push(`edge_type=${encodeURIComponent(edgeType)}`);
+    if (params.length > 0) url += '?' + params.join('&');
+
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             graphData = data;
-            renderGraph();
+            applyFilters();
         })
         .catch(error => console.error('加载图谱数据失败:', error));
+}
+
+function applyFilters() {
+    const nodeTypeFilter = document.getElementById('filter-node-type').value;
+    const edgeTypeFilter = document.getElementById('filter-edge-type').value;
+
+    currentNodeTypeFilter = nodeTypeFilter;
+    currentEdgeTypeFilter = edgeTypeFilter;
+
+    let filteredNodes = [...graphData.nodes];
+    let filteredEdges = [...graphData.edges];
+
+    if (nodeTypeFilter) {
+        filteredNodes = filteredNodes.filter(n => n.type === nodeTypeFilter);
+    }
+
+    if (edgeTypeFilter) {
+        filteredEdges = filteredEdges.filter(e => e.type === edgeTypeFilter);
+    }
+
+    const visibleNodeIds = new Set(filteredNodes.map(n => n.id));
+    filteredEdges = filteredEdges.filter(e =>
+        visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)
+    );
+
+    filteredData = {
+        nodes: filteredNodes,
+        edges: filteredEdges
+    };
+
+    document.getElementById('stat-nodes').textContent = filteredNodes.length;
+    document.getElementById('stat-edges').textContent = filteredEdges.length;
+
+    let filterInfo = '';
+    if (nodeTypeFilter && edgeTypeFilter) {
+        filterInfo = `筛选: 节点类型「${nodeTypeFilter}」, 关系类型「${edgeTypeFilter}」`;
+    } else if (nodeTypeFilter) {
+        filterInfo = `筛选: 节点类型「${nodeTypeFilter}」`;
+    } else if (edgeTypeFilter) {
+        filterInfo = `筛选: 关系类型「${edgeTypeFilter}」`;
+    } else {
+        filterInfo = '当前显示所有节点和关系';
+    }
+    document.getElementById('filter-info').textContent = filterInfo;
+
+    renderGraph();
+}
+
+function resetFilters() {
+    document.getElementById('filter-node-type').value = '';
+    document.getElementById('filter-edge-type').value = '';
+    document.getElementById('search-input').value = '';
+    document.getElementById('search-results').innerHTML = '';
+    applyFilters();
 }
 
 function renderGraph() {
@@ -187,12 +341,23 @@ function renderGraph() {
 
     g.selectAll("*").remove();
 
-    const nodes = graphData.nodes.map(d => ({...d}));
-    const edges = graphData.edges.map(d => ({
+    const nodes = filteredData.nodes.map(d => ({...d}));
+    const edges = filteredData.edges.map(d => ({
         ...d,
         source: d.source,
         target: d.target
     }));
+
+    if (nodes.length === 0) {
+        g.append("text")
+            .attr("x", width / 2)
+            .attr("y", height / 2)
+            .attr("text-anchor", "middle")
+            .attr("fill", "#999")
+            .attr("font-size", "16px")
+            .text("没有找到符合筛选条件的节点");
+        return;
+    }
 
     const simulation = d3.forceSimulation(nodes)
         .force("link", d3.forceLink(edges).id(d => d.id).distance(100))
@@ -381,11 +546,6 @@ function searchNodes() {
     resultsDiv.innerHTML = html;
 }
 
-function filterNodes() {
-    const filterType = document.getElementById('filter-type').value;
-    loadGraphData();
-}
-
 function focusNode(nodeId) {
     const node = graphData.nodes.find(n => n.id === nodeId);
     if (node) {
@@ -394,13 +554,323 @@ function focusNode(nodeId) {
 }
 
 function showNodeDetail(node) {
-    alert(
-        '节点详情\n' +
-        '------\n' +
-        '类型: ' + node.type + '\n' +
-        '标签: ' + node.label + '\n' +
-        '描述: ' + (node.description || '无')
-    );
+    nodeDetailModal.show();
+    document.getElementById('nodeDetailTitle').innerHTML =
+        `<span class="badge me-2" style="background-color: ${getNodeColor(node.type)}">${node.type}</span>${node.label}`;
+
+    document.getElementById('nodeDetailBody').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-3 text-muted">正在加载节点详情...</p>
+        </div>
+    `;
+
+    if (node.type === 'diff' && node.ref_id) {
+        loadDiffDetail(node.ref_id);
+    } else if (node.type === 'version' && node.ref_id) {
+        loadVersionDetail(node.ref_id, node);
+    } else if (node.type === 'proposal' && node.ref_id) {
+        loadProposalDetail(node.ref_id, node);
+    } else {
+        renderGenericNodeDetail(node);
+    }
+}
+
+function loadDiffDetail(diffId) {
+    fetch(`/api/projects/{{ project.id }}/diffs/${diffId}/graph-detail`)
+        .then(response => response.json())
+        .then(data => {
+            renderDiffDetail(data);
+        })
+        .catch(error => {
+            console.error('加载异文详情失败:', error);
+            document.getElementById('nodeDetailBody').innerHTML =
+                '<div class="alert alert-danger">加载详情失败: ' + error + '</div>';
+        });
+}
+
+function renderDiffDetail(detail) {
+    let html = '';
+
+    html += `<div class="detail-section">
+        <h6><i class="bi bi-info-circle"></i> 基本信息</h6>
+        <div class="row">
+            <div class="col-md-3">
+                <strong>异文ID:</strong> ${detail.diff_id}
+            </div>
+            <div class="col-md-3">
+                <strong>异文类型:</strong>
+                <span class="badge bg-danger">${detail.diff_type}</span>
+            </div>
+            <div class="col-md-3">
+                <strong>状态:</strong>
+                <span class="badge ${detail.status === 'finalized' ? 'bg-success' : detail.status === 'reviewed' ? 'bg-warning' : 'bg-secondary'}">${detail.status}</span>
+            </div>
+            <div class="col-md-3">
+                <strong>异文文本:</strong>
+                <code class="bg-light px-2 py-1">${detail.diff_text || '(空)'}</code>
+            </div>
+        </div>
+    </div>`;
+
+    if (detail.versions && detail.versions.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-map"></i> 版本分布</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>版本名称</th>
+                            <th>来源</th>
+                            <th>年代</th>
+                            <th>卷号</th>
+                            <th>段落号</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+        detail.versions.forEach(v => {
+            html += `<tr>
+                <td><span class="badge badge-version">${v.name}</span></td>
+                <td>${v.source || '未知'}</td>
+                <td>${v.year || '未知'}</td>
+                <td>${v.volume_no || '-'}</td>
+                <td>${v.paragraph_no || '-'}</td>
+            </tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+    }
+
+    if (detail.proposals && detail.proposals.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-lightbulb"></i> 校勘方案 (${detail.proposals.length})</h6>
+            <div class="accordion" id="proposalsAccordion">`;
+        detail.proposals.forEach((p, idx) => {
+            html += `<div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button ${idx > 0 ? 'collapsed' : ''}" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#proposal${idx}">
+                        <span class="badge badge-proposal me-2">
+                            ${p.is_accepted ? '<i class="bi bi-check-circle"></i> 已采纳' : '待审'}
+                        </span>
+                        ${p.title}
+                        <span class="ms-2 text-muted small">作者: ${p.author}</span>
+                    </button>
+                </h2>
+                <div id="proposal${idx}" class="accordion-collapse collapse ${idx === 0 ? 'show' : ''}"
+                     data-bs-parent="#proposalsAccordion">
+                    <div class="accordion-body">
+                        <div class="mb-2"><strong>建议文本:</strong> <code>${p.proposed_text}</code></div>
+                        <div class="mb-2"><strong>创建时间:</strong> ${new Date(p.created_at).toLocaleString('zh-CN')}</div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    if (detail.citations && detail.citations.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-book"></i> 文献来源 (${detail.citations.length})</h6>
+            <div class="list-group">`;
+        detail.citations.forEach(c => {
+            html += `<div class="list-group-item">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1"><span class="badge badge-citation">${c.title}</span></h6>
+                    <small class="text-muted">${c.author || '未知作者'}</small>
+                </div>
+                ${c.publication ? `<p class="mb-1 small">${c.publication}${c.page_info ? ' · ' + c.page_info : ''}</p>` : ''}
+                ${c.quote_text ? `<blockquote class="blockquote-footer mt-2">${c.quote_text}</blockquote>` : ''}
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    if (detail.related_diffs && detail.related_diffs.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-diagram-3"></i> 关联异文 (${detail.related_diffs.length})</h6>
+            <div class="row">`;
+        detail.related_diffs.forEach(rd => {
+            html += `<div class="col-md-6 mb-2">
+                <div class="card border-info">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge badge-diff">异文${rd.id}</span>
+                            <span class="badge bg-info">${rd.relation_type}</span>
+                        </div>
+                        <div class="mt-1">
+                            <code>${rd.text || '(空)'}</code>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-1 small text-muted">
+                            <span>${rd.version_name}</span>
+                            <span>置信度: ${rd.confidence}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    if (detail.resolution_history && detail.resolution_history.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-clock-history"></i> 历史决议过程</h6>
+            <div style="max-height: 300px; overflow-y: auto;">`;
+        detail.resolution_history.forEach(h => {
+            html += `<div class="timeline-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>${h.author}</strong>
+                        ${h.is_final ? '<span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> 定论</span>' : ''}
+                        <span class="text-muted small ms-2">${new Date(h.created_at).toLocaleString('zh-CN')}</span>
+                    </div>
+                </div>
+                <div class="mt-1">${h.content}</div>
+                ${h.evidence ? `<div class="mt-1 small"><i class="bi bi-journal-text text-primary"></i> <strong>文献依据:</strong> ${h.evidence}</div>` : ''}
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    html += `<div class="detail-section">
+        <h6><i class="bi bi-link-45deg"></i> 快捷操作</h6>
+        <div class="btn-group">
+            <a href="/projects/{{ project.id }}/transmission?diff_id=${detail.diff_id}" class="btn btn-outline-primary">
+                <i class="bi bi-graph-down-arrow"></i> 传播分析
+            </a>
+            <a href="/projects/{{ project.id }}/collation/${detail.diff_id}" class="btn btn-outline-secondary">
+                <i class="bi bi-pencil-square"></i> 校勘页面
+            </a>
+        </div>
+    </div>`;
+
+    document.getElementById('nodeDetailBody').innerHTML = html;
+}
+
+function loadVersionDetail(versionId, node) {
+    fetch(`/api/projects/{{ project.id }}/diffs/distribution`)
+        .then(response => response.json())
+        .then(data => {
+            const versionDist = data.distribution.find(d => d.version_id === versionId);
+            renderVersionDetail(node, versionDist);
+        })
+        .catch(error => {
+            console.error('加载版本详情失败:', error);
+            renderGenericNodeDetail(node);
+        });
+}
+
+function renderVersionDetail(node, versionDist) {
+    let html = `<div class="detail-section">
+        <h6><i class="bi bi-info-circle"></i> 版本信息</h6>
+        <div class="mb-2"><strong>版本名称:</strong> ${node.label}</div>
+        <div class="mb-2"><strong>描述:</strong> ${node.description || '无'}</div>
+    </div>`;
+
+    if (versionDist) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-bar-chart"></i> 异文统计</h6>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-primary text-white text-center">
+                        <div class="card-body">
+                            <h3>${versionDist.diff_count}</h3>
+                            <div>异文总数</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ${versionDist.diff_ids && versionDist.diff_ids.length > 0 ? `
+            <div class="mt-3">
+                <strong>异文列表:</strong>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    ${versionDist.diff_ids.slice(0, 50).map(id => `<span class="badge badge-diff" onclick="focusNodeByRef('diff', ${id})" style="cursor: pointer;">异文${id}</span>`).join('')}
+                    ${versionDist.diff_ids.length > 50 ? `<span class="text-muted small">等 ${versionDist.diff_ids.length} 条</span>` : ''}
+                </div>
+            </div>` : ''}
+        </div>`;
+    }
+
+    document.getElementById('nodeDetailBody').innerHTML = html;
+}
+
+function loadProposalDetail(proposalId, node) {
+    renderGenericNodeDetail(node);
+}
+
+function renderGenericNodeDetail(node) {
+    const outgoingEdges = graphData.edges.filter(e => e.source === node.id);
+    const incomingEdges = graphData.edges.filter(e => e.target === node.id);
+
+    const relatedNodes = new Set();
+    outgoingEdges.forEach(e => {
+        const targetNode = graphData.nodes.find(n => n.id === e.target);
+        if (targetNode) relatedNodes.add(JSON.stringify(targetNode));
+    });
+    incomingEdges.forEach(e => {
+        const sourceNode = graphData.nodes.find(n => n.id === e.source);
+        if (sourceNode) relatedNodes.add(JSON.stringify(sourceNode));
+    });
+    const relatedNodesArray = Array.from(relatedNodes).map(s => JSON.parse(s));
+
+    let html = `<div class="detail-section">
+        <h6><i class="bi bi-info-circle"></i> 基本信息</h6>
+        <div class="mb-2"><strong>类型:</strong> <span class="badge" style="background-color: ${getNodeColor(node.type)}">${node.type}</span></div>
+        <div class="mb-2"><strong>标签:</strong> ${node.label}</div>
+        <div class="mb-2"><strong>描述:</strong> ${node.description || '无'}</div>
+    </div>`;
+
+    if (outgoingEdges.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-arrow-right"></i> 出向关系 (${outgoingEdges.length})</h6>
+            <div class="list-group list-group-flush">`;
+        outgoingEdges.slice(0, 20).forEach(e => {
+            const targetNode = graphData.nodes.find(n => n.id === e.target);
+            html += `<div class="list-group-item d-flex justify-content-between align-items-center py-2" onclick="focusNode(${e.target})" style="cursor: pointer;">
+                <div>
+                    <span class="badge me-2" style="background-color: ${getEdgeColor(e.type)}">${e.type}</span>
+                    ${targetNode ? targetNode.label : '未知节点'}
+                </div>
+                <i class="bi bi-chevron-right text-muted"></i>
+            </div>`;
+        });
+        if (outgoingEdges.length > 20) {
+            html += `<div class="list-group-item text-muted small text-center">还有 ${outgoingEdges.length - 20} 条关系...</div>`;
+        }
+        html += `</div></div>`;
+    }
+
+    if (incomingEdges.length > 0) {
+        html += `<div class="detail-section">
+            <h6><i class="bi bi-arrow-left"></i> 入向关系 (${incomingEdges.length})</h6>
+            <div class="list-group list-group-flush">`;
+        incomingEdges.slice(0, 20).forEach(e => {
+            const sourceNode = graphData.nodes.find(n => n.id === e.source);
+            html += `<div class="list-group-item d-flex justify-content-between align-items-center py-2" onclick="focusNode(${e.source})" style="cursor: pointer;">
+                <div>
+                    ${sourceNode ? sourceNode.label : '未知节点'}
+                    <span class="badge ms-2" style="background-color: ${getEdgeColor(e.type)}">${e.type}</span>
+                </div>
+                <i class="bi bi-chevron-right text-muted"></i>
+            </div>`;
+        });
+        if (incomingEdges.length > 20) {
+            html += `<div class="list-group-item text-muted small text-center">还有 ${incomingEdges.length - 20} 条关系...</div>`;
+        }
+        html += `</div></div>`;
+    }
+
+    document.getElementById('nodeDetailBody').innerHTML = html;
+}
+
+function focusNodeByRef(nodeType, refId) {
+    const node = graphData.nodes.find(n => n.type === nodeType && n.ref_id === refId);
+    if (node) {
+        showNodeDetail(node);
+    } else {
+        alert('未找到对应的节点');
+    }
 }
 
 function showTooltip(event, d) {
