@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}校勘意见 - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 style="color: #2c3e50;">
+            <i class="bi bi-chat-dots"></i> 校勘意见
+        </h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/">首页</a></li>
+                <li class="breadcrumb-item"><a href="/projects/{{ project.id }}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item active">校勘意见</li>
+            </ol>
+        </nav>
+    </div>
+    <a href="/projects/{{ project.id }}/compare{% if passage %}?volume_no={{ passage.volume_no }}&paragraph_no={{ passage.paragraph_no }}{% endif %}" 
+       class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 返回对照
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2c3e50; color: white;">
+        <h5 class="mb-0">
+            <span class="badge me-2" style="background-color: {{ diff_color }};">{{ diff_label }}</span>
+            差异详情
+        </h5>
+        <span class="badge 
+            {% if diff.status == 'pending' %}bg-secondary
+            {% elif diff.status == 'reviewed' %}bg-warning text-dark
+            {% elif diff.status == 'finalized' %}bg-success{% endif %} fs-6">
+            {% if diff.status == 'pending' %}待处理
+            {% elif diff.status == 'reviewed' %}复核中
+            {% elif diff.status == 'finalized' %}已定论{% endif %}
+        </span>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="text-muted fw-bold">所在版本</label>
+                <p>{% if version %}{{ version.name }}{% else %}-{% endif %}</p>
+            </div>
+            <div class="col-md-6">
+                <label class="text-muted fw-bold">位置</label>
+                <p>{% if passage %}卷 {{ passage.volume_no }} · 第 {{ passage.paragraph_no }} 段{% else %}-{% endif %}</p>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="text-muted fw-bold">原文（参照）</label>
+                <div class="p-3 rounded" style="background-color: #f5f0e8; font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.15rem;">
+                    {{ diff.reference_text or '（无）' }}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="text-muted fw-bold">异文</label>
+                <div class="p-3 rounded" style="background-color: {{ diff_color }}15; font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.15rem; border: 1px solid {{ diff_color }}40;">
+                    <span style="color: {{ diff_color }};">{{ diff.text or '（缺字）' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #c0392b; color: white;">
+        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> 提交校勘意见</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="/projects/{{ project.id }}/collation/{{ diff.id }}/notes">
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="author" class="form-label fw-bold">校勘人 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="author" name="author" required placeholder="请输入您的姓名">
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="is_final" name="is_final">
+                        <label class="form-check-label fw-bold" for="is_final">
+                            标记为定论
+                            <span class="text-muted small ms-1">（需提供文献依据）</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="content" class="form-label fw-bold">校勘意见 <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="content" name="content" rows="4" required
+                          placeholder="请详细说明您的校勘意见，例如：从字形演变来看，此处当作'X'，理由是..."></textarea>
+            </div>
+            <div class="mb-4">
+                <label for="evidence" class="form-label fw-bold">
+                    文献依据
+                    <span class="text-danger ms-1" id="evidenceRequired">*</span>
+                </label>
+                <textarea class="form-control" id="evidence" name="evidence" rows="3"
+                          placeholder="请引用文献依据，例如：《说文解字》卷X，XX页；《康熙字典》X集..."></textarea>
+                <div class="form-text">未提供文献依据的意见不能标记为定论</div>
+            </div>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;">
+                    <i class="bi bi-send"></i> 提交意见
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header" style="background-color: #2c3e50; color: white;">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> 校勘意见历史 ({{ notes|length }})</h5>
+    </div>
+    <div class="card-body">
+        {% if notes %}
+        <div class="timeline">
+            {% for note in notes %}
+            <div class="timeline-item mb-4">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content ms-4">
+                    <div class="card {% if note.is_final %}border-success{% elif note.needs_review %}border-warning{% endif %}">
+                        <div class="card-header d-flex justify-content-between align-items-center 
+                                    {% if note.is_final %}bg-success text-white
+                                    {% elif note.needs_review %}bg-warning text-dark
+                                    {% else %}bg-light{% endif %}">
+                            <div>
+                                <strong>{{ note.author }}</strong>
+                                {% if note.is_final %}
+                                <span class="badge bg-white text-success ms-2"><i class="bi bi-check2-circle"></i> 定论</span>
+                                {% endif %}
+                                {% if note.needs_review %}
+                                <span class="badge bg-danger ms-2"><i class="bi bi-exclamation-triangle"></i> 待复核</span>
+                                {% endif %}
+                            </div>
+                            <small>{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-chat-square-text"></i> 校勘意见</h6>
+                                <p class="mb-0" style="white-space: pre-wrap;">{{ note.content }}</p>
+                            </div>
+                            {% if note.evidence %}
+                            <div class="mb-3">
+                                <h6 class="text-muted mb-1"><i class="bi bi-book"></i> 文献依据</h6>
+                                <p class="mb-0 fst-italic" style="white-space: pre-wrap;">{{ note.evidence }}</p>
+                            </div>
+                            {% endif %}
+                            <div class="d-flex gap-2">
+                                {% if not note.is_final and note.evidence %}
+                                <form method="POST" action="/projects/{{ project.id }}/collation/{{ diff.id }}/notes/{{ note.id }}/final" class="d-inline">
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="bi bi-check2-circle"></i> 标记为定论
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if not note.needs_review %}
+                                <form method="POST" action="/projects/{{ project.id }}/collation/{{ diff.id }}/notes/{{ note.id }}/review" class="d-inline">
+                                    <button type="submit" class="btn btn-warning btn-sm">
+                                        <i class="bi bi-arrow-repeat"></i> 发起复核
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+            <p class="mt-3 mb-0">暂无校勘意见，请在上方提交您的意见</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const isFinalCheckbox = document.getElementById('is_final');
+const evidenceRequired = document.getElementById('evidenceRequired');
+const evidenceInput = document.getElementById('evidence');
+
+function updateEvidenceRequired() {
+    if (isFinalCheckbox.checked) {
+        evidenceRequired.style.display = 'inline';
+        evidenceInput.required = true;
+    } else {
+        evidenceRequired.style.display = 'none';
+        evidenceInput.required = false;
+    }
+}
+
+isFinalCheckbox.addEventListener('change', updateEvidenceRequired);
+updateEvidenceRequired();
+</script>
+{% endblock %}

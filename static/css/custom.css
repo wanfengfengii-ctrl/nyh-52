@@ -1,0 +1,279 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: #faf8f4;
+    color: #2c3e50;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 600;
+}
+
+.navbar-brand {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+
+.card {
+    border-radius: 8px;
+    border: 1px solid #e5ddd0;
+    box-shadow: 0 2px 4px rgba(44, 62, 80, 0.05);
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px rgba(44, 62, 80, 0.1);
+}
+
+.card-header {
+    border-radius: 7px 7px 0 0 !important;
+    font-family: 'Noto Serif SC', serif;
+}
+
+.btn-primary {
+    background-color: #c0392b;
+    border-color: #c0392b;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: #a93226;
+    border-color: #a93226;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(192, 57, 43, 0.3);
+}
+
+.btn-outline-primary {
+    color: #2c3e50;
+    border-color: #2c3e50;
+}
+
+.btn-outline-primary:hover {
+    background-color: #2c3e50;
+    border-color: #2c3e50;
+}
+
+.btn-success {
+    background-color: #27ae60;
+    border-color: #27ae60;
+}
+
+.btn-success:hover {
+    background-color: #229954;
+    border-color: #229954;
+}
+
+.btn-warning {
+    background-color: #f39c12;
+    border-color: #f39c12;
+    color: white;
+}
+
+.btn-warning:hover {
+    background-color: #d68910;
+    border-color: #d68910;
+    color: white;
+}
+
+.progress {
+    background-color: #e5ddd0;
+    border-radius: 10px;
+}
+
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.6s ease;
+}
+
+.list-group-item {
+    border-color: #e5ddd0;
+    background-color: #fff;
+}
+
+.list-group-item:hover {
+    background-color: #f5f0e8;
+}
+
+.diff-mark {
+    padding: 2px 4px;
+    border-radius: 2px;
+    cursor: help;
+    transition: all 0.2s ease;
+}
+
+.diff-mark:hover {
+    filter: brightness(0.95);
+}
+
+.diff-missing {
+    font-weight: bold;
+}
+
+.form-control, .form-select {
+    border-color: #d4c5a9;
+    border-radius: 6px;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #2c3e50;
+    box-shadow: 0 0 0 0.2rem rgba(44, 62, 80, 0.15);
+}
+
+.badge {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 500;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: #f5f0e8;
+    color: #2c3e50;
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: none;
+    border-color: #d4c5a9;
+}
+
+.timeline {
+    position: relative;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #c0392b, #2c3e50);
+}
+
+.timeline-item {
+    position: relative;
+    padding-left: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 18px;
+    height: 18px;
+    background-color: #fff;
+    border: 3px solid #c0392b;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+.timeline-item:first-child .timeline-marker {
+    background-color: #c0392b;
+}
+
+.alert {
+    border-radius: 8px;
+    border: none;
+}
+
+footer {
+    font-family: 'Noto Serif SC', serif;
+    margin-top: auto;
+}
+
+.passage-item {
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.passage-content {
+    background-color: #fff;
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #2c3e50;
+    margin-top: 0.5rem;
+}
+
+.table {
+    border-color: #e5ddd0;
+}
+
+.table th {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 600;
+    background-color: #f5f0e8;
+    border-bottom: 2px solid #d4c5a9;
+}
+
+.table td {
+    border-color: #e5ddd0;
+}
+
+.breadcrumb {
+    font-size: 0.9rem;
+}
+
+.breadcrumb a {
+    color: #c0392b;
+    text-decoration: none;
+}
+
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.modal-content {
+    border-radius: 10px;
+    border: none;
+}
+
+.modal-header {
+    border-radius: 10px 10px 0 0;
+}
+
+.form-switch .form-check-input {
+    width: 3em;
+    height: 1.5em;
+}
+
+.form-switch .form-check-input:checked {
+    background-color: #27ae60;
+    border-color: #27ae60;
+}
+
+@media (max-width: 768px) {
+    .display-4 {
+        font-size: 2rem;
+    }
+    
+    .display-6 {
+        font-size: 1.5rem;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+    }
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f5f0e8;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d4c5a9;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #c0392b;
+}

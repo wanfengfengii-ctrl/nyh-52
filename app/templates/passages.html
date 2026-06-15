@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - 段落管理{% endblock %}
+
+{% block content %}
+<h2 class="mb-4" style="color: #2c3e50;">
+    <i class="bi bi-file-text"></i> 段落管理
+    <small class="text-muted fs-5">- {{ project.name }}</small>
+</h2>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <label class="form-label fw-bold">选择版本</label>
+        <select class="form-select" id="versionSelect" onchange="onVersionChange()">
+            <option value="">-- 请选择版本 --</option>
+            {% for v in versions %}
+            <option value="{{ v.id }}" {% if selected_version and selected_version.id == v.id %}selected{% endif %}>
+                {{ v.name }}{% if v.year %} ({{ v.year }}){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label fw-bold">选择卷次</label>
+        <select class="form-select" id="volumeSelect" onchange="onVolumeChange()" {% if not selected_version %}disabled{% endif %}>
+            <option value="">-- 全部卷次 --</option>
+            {% for vol in selected_volumes %}
+            <option value="{{ vol }}" {% if selected_volume == vol %}selected{% endif %}>
+                卷 {{ vol }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+        <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addPassageModal" 
+                {% if not selected_version %}disabled{% endif %}
+                style="background-color: #c0392b; border-color: #c0392b;">
+            <i class="bi bi-plus"></i> 添加段落
+        </button>
+    </div>
+</div>
+
+{% if selected_version %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2c3e50; color: white;">
+        <h5 class="mb-0">
+            <i class="bi bi-book"></i> {{ selected_version.name }}
+            {% if selected_volume %} - 卷 {{ selected_volume }}{% endif %}
+            <span class="badge bg-light text-dark ms-2">{{ passages|length }} 段</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if passages %}
+        <div class="list-group">
+            {% for p in passages %}
+            <div class="list-group-item passage-item" data-passage-id="{{ p.id }}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0">
+                        <span class="badge" style="background-color: #2c3e50;">卷{{ p.volume_no }}·第{{ p.paragraph_no }}段</span>
+                    </h6>
+                    <div>
+                        <button class="btn btn-outline-primary btn-sm" onclick="editPassage({{ p.id }})">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deletePassage({{ p.id }})">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </div>
+                </div>
+                <div class="passage-content" style="font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.1rem; line-height: 1.8; color: #2c3e50;">
+                    {{ p.content }}
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> 最后更新: {{ p.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                    </small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-file-text" style="font-size: 3rem;"></i>
+            <p class="mt-3 mb-0">暂无段落，请添加段落内容</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-arrow-up" style="font-size: 3rem;"></i>
+    <p class="mt-3 mb-0">请先选择一个版本</p>
+</div>
+{% endif %}
+
+<div class="modal fade" id="addPassageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="/projects/{{ project.id }}/passages">
+                <input type="hidden" name="version_id" value="{% if selected_version %}{{ selected_version.id }}{% endif %}">
+                <div class="modal-header" style="background-color: #2c3e50; color: white;">
+                    <h5 class="modal-title mb-0"><i class="bi bi-plus"></i> 添加段落</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="volume_no" class="form-label fw-bold">卷次编号 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="volume_no" name="volume_no" min="1" required
+                                       value="{% if selected_volume %}{{ selected_volume }}{% else %}1{% endif %}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="paragraph_no" class="form-label fw-bold">段落编号 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="paragraph_no" name="paragraph_no" min="1" required>
+                                <div class="form-text">段落编号在同一卷内必须连续</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="content" class="form-label fw-bold">段落内容 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="content" name="content" rows="8" required
+                                  style="font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.05rem; line-height: 1.8;"
+                                  placeholder="在此粘贴或输入古籍段落文本..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;">添加段落</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editPassageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="editPassageForm" method="POST">
+                <div class="modal-header" style="background-color: #f39c12; color: white;">
+                    <h5 class="modal-title mb-0"><i class="bi bi-pencil"></i> 编辑段落</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>注意：</strong>修改段落内容后，相关校勘结论将自动变为待复核状态。
+                    </div>
+                    <div class="mb-3">
+                        <label for="editContent" class="form-label fw-bold">段落内容 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="editContent" name="content" rows="10" required
+                                  style="font-family: 'Noto Serif SC', 'SimSun', serif; font-size: 1.05rem; line-height: 1.8;"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-warning text-white">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<form id="deletePassageForm" method="POST" style="display: none;"></form>
+
+<script>
+function onVersionChange() {
+    const versionId = document.getElementById('versionSelect').value;
+    let url = `/projects/{{ project.id }}/passages`;
+    if (versionId) {
+        url += `?version_id=${versionId}`;
+    }
+    window.location.href = url;
+}
+
+function onVolumeChange() {
+    const versionId = document.getElementById('versionSelect').value;
+    const volumeNo = document.getElementById('volumeSelect').value;
+    let url = `/projects/{{ project.id }}/passages?version_id=${versionId}`;
+    if (volumeNo) {
+        url += `&volume_no=${volumeNo}`;
+    }
+    window.location.href = url;
+}
+
+function editPassage(passageId) {
+    const item = document.querySelector(`.passage-item[data-passage-id="${passageId}"]`);
+    const content = item.querySelector('.passage-content').innerText.trim();
+    
+    document.getElementById('editContent').value = content;
+    document.getElementById('editPassageForm').action = `/projects/{{ project.id }}/passages/${passageId}/edit`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editPassageModal'));
+    modal.show();
+}
+
+function deletePassage(passageId) {
+    if (confirm('确定要删除该段落吗？相关差异和校勘意见也会被删除。')) {
+        const form = document.getElementById('deletePassageForm');
+        form.action = `/projects/{{ project.id }}/passages/${passageId}/delete`;
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

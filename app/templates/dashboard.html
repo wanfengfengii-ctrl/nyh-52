@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - 进度仪表盘{% endblock %}
+
+{% block content %}
+<h2 class="mb-4" style="color: #2c3e50;">
+    <i class="bi bi-bar-chart"></i> 进度仪表盘
+    <small class="text-muted fs-5">- {{ project.name }}</small>
+</h2>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center h-100 border-0 shadow-sm" style="background-color: #f5f0e8;">
+            <div class="card-body">
+                <div class="display-4 mb-2" style="color: #2c3e50;">{{ stats.total_versions }}</div>
+                <div class="text-muted fw-bold">版本总数</div>
+                <div class="mt-2">
+                    <i class="bi bi-layers fs-4" style="color: #2c3e50;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100 border-0 shadow-sm" style="background-color: #f5f0e8;">
+            <div class="card-body">
+                <div class="display-4 mb-2" style="color: #2980b9;">{{ stats.total_passages }}</div>
+                <div class="text-muted fw-bold">段落总数</div>
+                <div class="mt-2">
+                    <i class="bi bi-file-text fs-4" style="color: #2980b9;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100 border-0 shadow-sm" style="background-color: #f5f0e8;">
+            <div class="card-body">
+                <div class="display-4 mb-2" style="color: #c0392b;">{{ stats.total_diffs }}</div>
+                <div class="text-muted fw-bold">差异总数</div>
+                <div class="mt-2">
+                    <i class="bi bi-exclamation-circle fs-4" style="color: #c0392b;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100 border-0 shadow-sm" style="background-color: #f5f0e8;">
+            <div class="card-body">
+                <div class="display-4 mb-2" style="color: #27ae60;">{{ stats.progress_percent }}%</div>
+                <div class="text-muted fw-bold">整体进度</div>
+                <div class="mt-2">
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ stats.progress_percent }}%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #2c3e50; color: white;">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> 差异状态分布</h5>
+            </div>
+            <div class="card-body">
+                {% if stats.total_diffs > 0 %}
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2 align-items-center">
+                        <div>
+                            <span class="badge bg-secondary me-2">待处理</span>
+                        </div>
+                        <span class="fw-bold">{{ stats.pending_diffs }} 个 ({{ ((stats.pending_diffs / stats.total_diffs) * 100)|round(1) }}%)</span>
+                    </div>
+                    <div class="progress" style="height: 14px;">
+                        <div class="progress-bar bg-secondary" role="progressbar" 
+                             style="width: {{ (stats.pending_diffs / stats.total_diffs * 100)|round(1) }}%;"></div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2 align-items-center">
+                        <div>
+                            <span class="badge bg-warning text-dark me-2">复核中</span>
+                        </div>
+                        <span class="fw-bold">{{ stats.reviewed_diffs }} 个 ({{ ((stats.reviewed_diffs / stats.total_diffs) * 100)|round(1) }}%)</span>
+                    </div>
+                    <div class="progress" style="height: 14px;">
+                        <div class="progress-bar bg-warning" role="progressbar" 
+                             style="width: {{ (stats.reviewed_diffs / stats.total_diffs * 100)|round(1) }}%;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between mb-2 align-items-center">
+                        <div>
+                            <span class="badge bg-success me-2">已定论</span>
+                        </div>
+                        <span class="fw-bold">{{ stats.finalized_diffs }} 个 ({{ ((stats.finalized_diffs / stats.total_diffs) * 100)|round(1) }}%)</span>
+                    </div>
+                    <div class="progress" style="height: 14px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ (stats.finalized_diffs / stats.total_diffs * 100)|round(1) }}%;"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-pie-chart" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">暂无差异数据</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #2c3e50; color: white;">
+                <h5 class="mb-0"><i class="bi bi-palette"></i> 差异类型分布</h5>
+            </div>
+            <div class="card-body">
+                {% if diff_summary.total > 0 %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><span style="display: inline-block; width: 14px; height: 14px; background-color: #e74c3c; border-radius: 3px;" class="me-2"></span>缺字</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.missing }}</span>
+                    </div>
+                    <div class="progress mt-1" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.missing / diff_summary.total * 100)|round(1) }}%; background-color: #e74c3c;"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><span style="display: inline-block; width: 14px; height: 14px; background-color: #f39c12; border-radius: 3px;" class="me-2"></span>异体字/异文</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.variant }}</span>
+                    </div>
+                    <div class="progress mt-1" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.variant / diff_summary.total * 100)|round(1) }}%; background-color: #f39c12;"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><span style="display: inline-block; width: 14px; height: 14px; background-color: #8e44ad; border-radius: 3px;" class="me-2"></span>衍文</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.added }}</span>
+                    </div>
+                    <div class="progress mt-1" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.added / diff_summary.total * 100)|round(1) }}%; background-color: #8e44ad;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><span style="display: inline-block; width: 14px; height: 14px; background-color: #2980b9; border-radius: 3px;" class="me-2"></span>倒置</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.reversed }}</span>
+                    </div>
+                    <div class="progress mt-1" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.reversed / diff_summary.total * 100)|round(1) }}%; background-color: #2980b9;"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-palette" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">暂无差异类型数据</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2c3e50; color: white;">
+        <h5 class="mb-0"><i class="bi bi-collection"></i> 各卷校勘进度</h5>
+        <a href="/projects/{{ project.id }}/export" class="btn btn-light btn-sm">
+            <i class="bi bi-download"></i> 导出报告
+        </a>
+    </div>
+    <div class="card-body">
+        {% if versions_data %}
+        <div class="accordion" id="versionAccordion">
+            {% for item in versions_data %}
+            <div class="accordion-item mb-2">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                            data-bs-target="#collapse{{ item.version.id }}" style="background-color: #f5f0e8;">
+                        <i class="bi bi-bookmark me-2" style="color: #c0392b;"></i>
+                        <strong>{{ item.version.name }}</strong>
+                        {% if item.version.year %}
+                        <span class="text-muted ms-2">({{ item.version.year }})</span>
+                        {% endif %}
+                        <span class="badge bg-secondary ms-3">{{ item.volumes|length }} 卷</span>
+                    </button>
+                </h2>
+                <div id="collapse{{ item.version.id }}" class="accordion-collapse collapse" data-bs-parent="#versionAccordion">
+                    <div class="accordion-body">
+                        {% if item.volumes %}
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm">
+                                <thead style="background-color: #f5f0e8;">
+                                    <tr>
+                                        <th>卷次</th>
+                                        <th>段落数</th>
+                                        <th>差异数</th>
+                                        <th>已定论</th>
+                                        <th>进度</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for vol_data in item.volumes %}
+                                    <tr>
+                                        <td><strong>卷 {{ vol_data.volume }}</strong></td>
+                                        <td>{{ vol_data.passage_count }}</td>
+                                        <td>{{ vol_data.total_diffs }}</td>
+                                        <td>{{ vol_data.finalized_diffs }}</td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="progress flex-grow-1" style="height: 8px;">
+                                                    <div class="progress-bar {% if vol_data.can_complete %}bg-success{% else %}bg-warning{% endif %}" 
+                                                         role="progressbar" style="width: {{ vol_data.progress }}%;"></div>
+                                                </div>
+                                                <small class="text-muted">{{ vol_data.progress }}%</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if vol_data.can_complete %}
+                                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> 可完成</span>
+                                            {% else %}
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> 有待处理差异</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">该版本暂无卷次数据</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-collection" style="font-size: 3rem;"></i>
+            <p class="mt-3 mb-0">暂无版本数据</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

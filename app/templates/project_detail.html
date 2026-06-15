@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - 项目详情{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 style="color: #2c3e50;">
+            <i class="bi bi-book"></i> {{ project.name }}
+        </h2>
+        <p class="text-muted mb-0">
+            <i class="bi bi-journal"></i> {{ project.book_title }}
+            &nbsp;|&nbsp;
+            <i class="bi bi-calendar"></i> 创建于 {{ project.created_at.strftime('%Y-%m-%d %H:%M') }}
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/projects/{{ project.id }}/passages" class="btn btn-outline-primary">
+            <i class="bi bi-file-text"></i> 管理段落
+        </a>
+        <a href="/projects/{{ project.id }}/compare" class="btn btn-outline-primary">
+            <i class="bi bi-layout-split"></i> 版本对照
+        </a>
+        <a href="/projects/{{ project.id }}/dashboard" class="btn btn-outline-primary">
+            <i class="bi bi-bar-chart"></i> 进度仪表盘
+        </a>
+    </div>
+</div>
+
+{% if project.description %}
+<div class="card mb-4" style="background-color: #f5f0e8;">
+    <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted"><i class="bi bi-info-circle"></i> 项目描述</h6>
+        <p class="card-text mb-0">{{ project.description }}</p>
+    </div>
+</div>
+{% endif %}
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="display-6" style="color: #2c3e50;">{{ stats.total_versions }}</div>
+                <div class="text-muted">版本数</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="display-6" style="color: #2980b9;">{{ stats.total_passages }}</div>
+                <div class="text-muted">段落数</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="display-6" style="color: #e74c3c;">{{ stats.pending_diffs }}</div>
+                <div class="text-muted">待处理差异</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="display-6" style="color: #27ae60;">{{ stats.progress_percent }}%</div>
+                <div class="text-muted">校勘进度</div>
+                <div class="progress mt-2" style="height: 6px;">
+                    <div class="progress-bar bg-success" role="progressbar"
+                         style="width: {{ stats.progress_percent }}%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2c3e50; color: white;">
+                <h5 class="mb-0"><i class="bi bi-layers"></i> 版本管理</h5>
+                <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addVersionModal">
+                    <i class="bi bi-plus"></i> 添加版本
+                </button>
+            </div>
+            <div class="card-body">
+                {% if versions_with_volumes %}
+                <div class="list-group">
+                    {% for item in versions_with_volumes %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ item.version.name }}</h6>
+                                <small class="text-muted">
+                                    {% if item.version.year %}{{ item.version.year }}年{% endif %}
+                                    {% if item.version.source %} - {{ item.version.source }}{% endif %}
+                                </small>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-file-text"></i> {{ item.passage_count }} 个段落
+                                        {% if item.volumes %}
+                                            &nbsp;|&nbsp;
+                                            <i class="bi bi-bookmark"></i> 卷: {{ item.volumes | join(', ') }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-layers" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">暂无版本，请添加至少2个版本以开始校勘</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #2c3e50; color: white;">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> 差异类型分布</h5>
+            </div>
+            <div class="card-body">
+                {% if diff_summary.total > 0 %}
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background-color: #e74c3c; border-radius: 2px;"></span> 缺字</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.missing }}</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.missing / diff_summary.total * 100) | round(1) }}%; background-color: #e74c3c;"></div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background-color: #f39c12; border-radius: 2px;"></span> 异体字</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.variant }}</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.variant / diff_summary.total * 100) | round(1) }}%; background-color: #f39c12;"></div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background-color: #8e44ad; border-radius: 2px;"></span> 衍文</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.added }}</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.added / diff_summary.total * 100) | round(1) }}%; background-color: #8e44ad;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><span style="display: inline-block; width: 12px; height: 12px; background-color: #2980b9; border-radius: 2px;"></span> 倒置</span>
+                        <span class="fw-bold">{{ diff_summary.by_type.reversed }}</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ (diff_summary.by_type.reversed / diff_summary.total * 100) | round(1) }}%; background-color: #2980b9;"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-pie-chart" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">暂无差异数据，请先录入段落</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addVersionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/projects/{{ project.id }}/versions">
+                <div class="modal-header" style="background-color: #2c3e50; color: white;">
+                    <h5 class="modal-title mb-0"><i class="bi bi-plus"></i> 添加版本</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-bold">版本名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               placeholder="例如：宋刻本、明抄本、今本">
+                        <div class="form-text">同一项目下版本名称不能重复</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="year" class="form-label">版本年代</label>
+                        <input type="text" class="form-control" id="year" name="year"
+                               placeholder="例如：南宋嘉定年间">
+                    </div>
+                    <div class="mb-3">
+                        <label for="source" class="form-label">版本来源/说明</label>
+                        <textarea class="form-control" id="source" name="source" rows="3"
+                                  placeholder="例如：藏于国家图书馆，编号XXX"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" style="background-color: #c0392b; border-color: #c0392b;">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
